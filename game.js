@@ -1,90 +1,111 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-// Налаштування Canvas
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
+canvas.width = innerWidth;
+canvas.height = innerHeight;
 
-// Об'єкт куба
-const cube = {
-    x: canvas.width / 2 - 25,
-    y: canvas.height / 2 - 25,
-    size: 50,
-    color: '#3498db',
-    lastTouchX: 0,
-    lastTouchY: 0,
-    isMoving: false
+// Гравець — трикутник
+const player = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  size: 30,
+  speedX: 0,
+  speedY: 0,
+  maxSpeed: 4
 };
 
-// Змінні для руху
-let touchOffsetX = 0;
-let touchOffsetY = 0;
+let joystickStart = null;
+let joystickMove = null;
 
-// Слухачі подій
-canvas.addEventListener('touchstart', handleTouchStart);
-canvas.addEventListener('touchmove', handleTouchMove);
-canvas.addEventListener('touchend', handleTouchEnd);
-
-function handleTouchStart(e) {
-    e.preventDefault();
-    const touch = e.touches[0];
-    
-    // Запам'ятовуємо початкові координати дотику
-    cube.lastTouchX = touch.clientX;
-    cube.lastTouchY = touch.clientY;
-    
-    // Перевіряємо, чи торкнулися куба
-    const isTouchingCube = (
-        touch.clientX >= cube.x &&
-        touch.clientX <= cube.x + cube.size &&
-        touch.clientY >= cube.y &&
-        touch.clientY <= cube.y + cube.size
-    );
-    
-    if (isTouchingCube) {
-        cube.isMoving = true;
-        // Запам'ятовуємо зміщення пальця відносно куба
-        touchOffsetX = touch.clientX - cube.x;
-        touchOffsetY = touch.clientY - cube.y;
-    }
+// Малюємо гравця (трикутник)
+function drawPlayer() {
+  ctx.fillStyle = "lime";
+  ctx.beginPath();
+  ctx.moveTo(player.x, player.y - player.size);
+  ctx.lineTo(player.x - player.size / 1.5, player.y + player.size / 1.5);
+  ctx.lineTo(player.x + player.size / 1.5, player.y + player.size / 1.5);
+  ctx.closePath();
+  ctx.fill();
 }
 
-function handleTouchMove(e) {
-    e.preventDefault();
-    if (!cube.isMoving) return;
-    
-    const touch = e.touches[0];
-    
-    // Оновлюємо позицію куба з урахуванням зміщення
-    cube.x = touch.clientX - touchOffsetX;
-    cube.y = touch.clientY - touchOffsetY;
-    
-    // Запам'ятовуємо останні координати для плавності
-    cube.lastTouchX = touch.clientX;
-    cube.lastTouchY = touch.clientY;
-    
-    // Обмеження меж екрану
-    cube.x = Math.max(0, Math.min(cube.x, canvas.width - cube.size));
-    cube.y = Math.max(0, Math.min(cube.y, canvas.height - cube.size));
+// Малюємо джойстик
+function drawJoystick() {
+  if (!joystickStart || !joystickMove) return;
+
+  const baseX = joystickStart.x;
+  const baseY = joystickStart.y;
+  const knobX = joystickMove.x;
+  const knobY = joystickMove.y;
+
+  ctx.strokeStyle = "#888";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(baseX, baseY, 40, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#ccc";
+  ctx.beginPath();
+  ctx.arc(knobX, knobY, 20, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-function handleTouchEnd() {
-    cube.isMoving = false;
+// Оновлення позиції гравця
+function updatePlayer() {
+  player.x += player.speedX;
+  player.y += player.speedY;
+
+  // Межі
+  player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
+  player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
 }
 
-// Головний цикл
-function draw() {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.fillStyle = cube.color;
-    ctx.fillRect(cube.x, cube.y, cube.size, cube.size);
-    
-    requestAnimationFrame(draw);
+// Основний цикл
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  updatePlayer();
+  drawPlayer();
+  drawJoystick();
+  requestAnimationFrame(loop);
 }
+loop();
 
-draw();
+// Торкання
+canvas.addEventListener("touchstart", e => {
+  const t = e.touches[0];
+  joystickStart = { x: t.clientX, y: t.clientY };
+  joystickMove = { x: t.clientX, y: t.clientY };
+});
+
+canvas.addEventListener("touchmove", e => {
+  const t = e.touches[0];
+  joystickMove = { x: t.clientX, y: t.clientY };
+
+  const dx = joystickMove.x - joystickStart.x;
+  const dy = joystickMove.y - joystickStart.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const maxDistance = 40;
+
+  // нормалізований вектор
+  let normX = dx / distance;
+  let normY = dy / distance;
+
+  // якщо палка в межах круга
+  if (distance < maxDistance) {
+    player.speedX = dx * 0.1;
+    player.speedY = dy * 0.1;
+  } else {
+    player.speedX = normX * player.maxSpeed;
+    player.speedY = normY * player.maxSpeed;
+
+    // обмеження довжини палки
+    joystickMove.x = joystickStart.x + normX * maxDistance;
+    joystickMove.y = joystickStart.y + normY * maxDistance;
+  }
+});
+
+canvas.addEventListener("touchend", () => {
+  joystickStart = null;
+  joystickMove = null;
+  player.speedX = 0;
+  player.speedY = 0;
+});
