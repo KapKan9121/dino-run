@@ -8,46 +8,54 @@ const player = {
   x: canvas.width / 2,
   y: canvas.height - 100,
   size: 40,
-  velocityX: 0,
-  velocityY: 0
+  targetX: 0,
+  targetY: 0,
+  speedFactor: 0.3
 };
 
 let bullets = [];
-let lastTouch = null;
+let isTouching = false;
+let anchor = { x: 0, y: 0 };
 
-// Автострільба
+// автострільба
 setInterval(() => {
   bullets.push({ x: player.x, y: player.y - player.size / 2 });
 }, 500);
 
-// Рух — вектор зберігається
+// зберігаємо початкову точку
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
-  lastTouch = { x: t.clientX, y: t.clientY };
+  anchor.x = t.clientX;
+  anchor.y = t.clientY;
+  isTouching = true;
 });
 
 canvas.addEventListener("touchmove", (e) => {
+  if (!isTouching) return;
   const t = e.touches[0];
-  if (!lastTouch) {
-    lastTouch = { x: t.clientX, y: t.clientY };
-    return;
-  }
+  const dx = t.clientX - anchor.x;
+  const dy = t.clientY - anchor.y;
 
-  const dx = t.clientX - lastTouch.x;
-  const dy = t.clientY - lastTouch.y;
-
-  // Зберігаємо швидкість — масштаб можна коригувати
-  player.velocityX = dx * 0.5;
-  player.velocityY = dy * 0.5;
-
-  lastTouch = { x: t.clientX, y: t.clientY };
+  player.targetX = dx;
+  player.targetY = dy;
 });
 
 canvas.addEventListener("touchend", () => {
-  lastTouch = null;
-  player.velocityX = 0;
-  player.velocityY = 0;
+  isTouching = false;
+  player.targetX = 0;
+  player.targetY = 0;
 });
+
+function updatePlayer() {
+  if (isTouching) {
+    player.x += player.targetX * player.speedFactor;
+    player.y += player.targetY * player.speedFactor;
+  }
+
+  // межі
+  player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
+  player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
+}
 
 function drawPlayer() {
   ctx.fillStyle = "lime";
@@ -61,15 +69,6 @@ function drawBullets() {
     b.y -= 10;
   });
   bullets = bullets.filter(b => b.y > 0);
-}
-
-function updatePlayer() {
-  player.x += player.velocityX;
-  player.y += player.velocityY;
-
-  // Межі
-  player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
-  player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
 }
 
 function gameLoop() {
