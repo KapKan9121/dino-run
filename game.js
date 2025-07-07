@@ -7,24 +7,33 @@ canvas.height = innerHeight;
 // === Гравець ===
 const player = {
   x: canvas.width / 2,
-  y: canvas.height / 2,
+  y: canvas.height * 0.75, // нижче середини
   speedX: 0,
   speedY: 0,
   width: 60,
   height: 60,
   image: new Image()
 };
-player.image.src = "images/player/player.png"; // заміни шлях на свій
+player.image.src = "images/player/player.png";
+
+// === Ворог ===
+const enemy = {
+  x: canvas.width / 2,
+  y: 0,
+  width: 60,
+  height: 60,
+  speedY: 2,
+  image: new Image()
+};
+enemy.image.src = "images/enemy/enemy.png";
+
+// === Кулі ===
+const bullets = [];
 
 // === Фон ===
 const backgroundFar = new Image();
-backgroundFar.src = "images/fon/layer_far.png"; // далекі зірки
-
-//const backgroundNear = new Image();
-//backgroundNear.src = "images/fon/layer_near.png"; // метеорити (з прозорим фоном)
-
+backgroundFar.src = "images/fon/layer_far.png";
 let bgFarY = 0;
-let bgNearY = 0;
 
 // === Малювання гравця ===
 function drawPlayer() {
@@ -37,29 +46,81 @@ function drawPlayer() {
   );
 }
 
+// === Малювання ворога ===
+function drawEnemy() {
+  ctx.drawImage(
+    enemy.image,
+    enemy.x - enemy.width / 2,
+    enemy.y - enemy.height / 2,
+    enemy.width,
+    enemy.height
+  );
+}
+
+// === Малювання куль ===
+function drawBullets() {
+  ctx.fillStyle = "white";
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
 // === Оновлення гравця ===
 function updatePlayer() {
   player.x += player.speedX;
   player.y += player.speedY;
-
-  // межі
   player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
   player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
 }
 
+// === Оновлення ворога ===
+function updateEnemy() {
+  enemy.y += enemy.speedY;
+  if (enemy.y > canvas.height + enemy.height) {
+    resetGame();
+  }
+}
+
+// === Оновлення куль ===
+function updateBullets() {
+  bullets.forEach((b, i) => {
+    b.y -= 5;
+    if (b.y < 0) bullets.splice(i, 1);
+  });
+}
+
+// === Перевірка зіткнень ===
+function checkCollision() {
+  bullets.forEach((b, i) => {
+    if (
+      b.x > enemy.x - enemy.width / 2 &&
+      b.x < enemy.x + enemy.width / 2 &&
+      b.y > enemy.y - enemy.height / 2 &&
+      b.y < enemy.y + enemy.height / 2
+    ) {
+      bullets.splice(i, 1);
+      resetGame();
+    }
+  });
+
+  if (
+    player.x < enemy.x + enemy.width / 2 &&
+    player.x + player.width / 2 > enemy.x - enemy.width / 2 &&
+    player.y < enemy.y + enemy.height / 2 &&
+    player.y + player.height / 2 > enemy.y - enemy.height / 2
+  ) {
+    resetGame();
+  }
+}
+
 // === Малювання фону ===
 function drawBackground() {
-  // Далека частина фону
   bgFarY += 1.0;
   if (bgFarY >= canvas.height) bgFarY = 0;
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
-
-  // Ближча частина фону (метеорити)
-  //bgNearY += 1.3;
-  //if (bgNearY >= canvas.height) bgNearY = 0;
-  //ctx.drawImage(backgroundNear, 0, bgNearY, canvas.width, canvas.height);
-  //ctx.drawImage(backgroundNear, 0, bgNearY - canvas.height, canvas.width, canvas.height);
 }
 
 // === Керування через сенсор ===
@@ -76,17 +137,13 @@ canvas.addEventListener("touchstart", (e) => {
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
   const now = performance.now();
-
   if (!lastTouch) return;
-
   const dx = t.clientX - lastTouch.x;
   const dy = t.clientY - lastTouch.y;
   const dt = now - lastTouch.time;
   if (dt < 1) return;
-
   const pxPerFrameX = dx / (dt / 16.66);
   const pxPerFrameY = dy / (dt / 16.66);
-
   const speed = Math.sqrt(pxPerFrameX ** 2 + pxPerFrameY ** 2);
   if (speed < stopThreshold) {
     player.speedX = 0;
@@ -95,7 +152,6 @@ canvas.addEventListener("touchmove", (e) => {
     player.speedX = pxPerFrameX;
     player.speedY = pxPerFrameY;
   }
-
   lastTouch = { x: t.clientX, y: t.clientY, time: now };
 });
 
@@ -105,13 +161,35 @@ canvas.addEventListener("touchend", () => {
   player.speedY = 0;
 });
 
+// === Автоматична стрільба ===
+setInterval(() => {
+  bullets.push({
+    x: player.x,
+    y: player.y - player.height / 2
+  });
+}, 300);
+
+// === Скидання гри ===
+function resetGame() {
+  player.x = canvas.width / 2;
+  player.y = canvas.height * 0.75;
+  enemy.x = Math.random() * (canvas.width - enemy.width) + enemy.width / 2;
+  enemy.y = 0;
+  bullets.length = 0;
+}
+
 // === Основний цикл ===
 function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBackground();
   updatePlayer();
+  updateEnemy();
+  updateBullets();
   drawPlayer();
+  drawEnemy();
+  drawBullets();
+  checkCollision();
   requestAnimationFrame(loop);
 }
 
 loop();
-
