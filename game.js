@@ -4,18 +4,19 @@ const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
+// Гравець
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
   size: 30,
   speedX: 0,
   speedY: 0,
-  maxSpeed: 4
+  maxSpeed: 10 // обмеження, щоб не було "вистрелу"
 };
 
-let touchStart = null;
-const deadZone = 5; // Поріг, нижче якого рух ігнорується
+let lastTouch = null;
 
+// Малюємо гравця як трикутник
 function drawPlayer() {
   ctx.fillStyle = "lime";
   ctx.beginPath();
@@ -26,14 +27,17 @@ function drawPlayer() {
   ctx.fill();
 }
 
+// Оновлюємо позицію гравця
 function updatePlayer() {
   player.x += player.speedX;
   player.y += player.speedY;
 
+  // межі екрану
   player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
   player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
 }
 
+// Основний цикл
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   updatePlayer();
@@ -42,37 +46,49 @@ function loop() {
 }
 loop();
 
-// Коли палець торкнувся — запам’ятовуємо початкову позицію
+// Торкання почалося
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
-  touchStart = { x: t.clientX, y: t.clientY };
+  lastTouch = { x: t.clientX, y: t.clientY, time: performance.now() };
+  player.speedX = 0;
+  player.speedY = 0;
 });
 
-// Коли палець рухається — обчислюємо напрям і силу руху
+// Палець рухається — рахуємо швидкість
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
-  if (!touchStart) return;
+  const now = performance.now();
 
-  const dx = t.clientX - touchStart.x;
-  const dy = t.clientY - touchStart.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (!lastTouch) return;
 
-  if (distance < deadZone) {
-    player.speedX = 0;
-    player.speedY = 0;
-    return;
+  const dx = t.clientX - lastTouch.x;
+  const dy = t.clientY - lastTouch.y;
+  const dt = now - lastTouch.time; // скільки мілісекунд пройшло
+
+  const timeDelta = Math.max(dt, 1); // уникаємо ділення на нуль
+
+  // Розрахунок швидкості (нормалізовано під 60fps)
+  let speedX = dx / (timeDelta / 16.66);
+  let speedY = dy / (timeDelta / 16.66);
+
+  // Обмеження максимальної швидкості
+  const speed = Math.sqrt(speedX ** 2 + speedY ** 2);
+  if (speed > player.maxSpeed) {
+    const ratio = player.maxSpeed / speed;
+    speedX *= ratio;
+    speedY *= ratio;
   }
 
-  const angle = Math.atan2(dy, dx);
-  const strength = Math.min(distance / 100, 1); // нормалізація
+  player.speedX = speedX;
+  player.speedY = speedY;
 
-  player.speedX = Math.cos(angle) * player.maxSpeed * strength;
-  player.speedY = Math.sin(angle) * player.maxSpeed * strength;
+  // Запам’ятовуємо нову точку
+  lastTouch = { x: t.clientX, y: t.clientY, time: now };
 });
 
-// Коли палець відпущено — повна зупинка
+// Палець відпущено — зупиняємось
 canvas.addEventListener("touchend", () => {
-  touchStart = null;
+  lastTouch = null;
   player.speedX = 0;
   player.speedY = 0;
 });
