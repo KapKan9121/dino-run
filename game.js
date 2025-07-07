@@ -1,54 +1,74 @@
+// === Налаштування канвасу ===
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
+// === Гравець ===
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
-  size: 30,
   speedX: 0,
-  speedY: 0
+  speedY: 0,
+  width: 60,
+  height: 60,
+  image: new Image()
 };
+player.image.src = "images/player/player.png"; // заміни шлях на свій
 
-let lastTouch = null;
-let lastUpdate = null;
+// === Фон ===
+const backgroundFar = new Image();
+backgroundFar.src = "images/fon/layer_far.png"; // далекі зірки
 
-// Порогова швидкість, нижче якої вважається "стоїть"
-const stopThreshold = 0.5; // px per frame
+const backgroundNear = new Image();
+backgroundNear.src = "images/fon/layer_near.png"; // метеорити (з прозорим фоном)
 
+let bgFarY = 0;
+let bgNearY = 0;
+
+// === Малювання гравця ===
 function drawPlayer() {
-  ctx.fillStyle = "lime";
-  ctx.beginPath();
-  ctx.moveTo(player.x, player.y - player.size);
-  ctx.lineTo(player.x - player.size / 1.5, player.y + player.size / 1.5);
-  ctx.lineTo(player.x + player.size / 1.5, player.y + player.size / 1.5);
-  ctx.closePath();
-  ctx.fill();
+  ctx.drawImage(
+    player.image,
+    player.x - player.width / 2,
+    player.y - player.height / 2,
+    player.width,
+    player.height
+  );
 }
 
+// === Оновлення гравця ===
 function updatePlayer() {
   player.x += player.speedX;
   player.y += player.speedY;
 
   // межі
-  player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
-  player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
+  player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
+  player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
 }
 
-function loop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  updatePlayer();
-  drawPlayer();
-  requestAnimationFrame(loop);
+// === Малювання фону ===
+function drawBackground() {
+  // Далека частина фону
+  bgFarY += 0.3;
+  if (bgFarY >= canvas.height) bgFarY = 0;
+  ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
+  ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
+
+  // Ближча частина фону (метеорити)
+  bgNearY += 1.0;
+  if (bgNearY >= canvas.height) bgNearY = 0;
+  ctx.drawImage(backgroundNear, 0, bgNearY, canvas.width, canvas.height);
+  ctx.drawImage(backgroundNear, 0, bgNearY - canvas.height, canvas.width, canvas.height);
 }
-loop();
+
+// === Керування через сенсор ===
+let lastTouch = null;
+let stopThreshold = 0.5;
 
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
   lastTouch = { x: t.clientX, y: t.clientY, time: performance.now() };
-  lastUpdate = { x: t.clientX, y: t.clientY, time: performance.now() };
   player.speedX = 0;
   player.speedY = 0;
 });
@@ -62,15 +82,11 @@ canvas.addEventListener("touchmove", (e) => {
   const dx = t.clientX - lastTouch.x;
   const dy = t.clientY - lastTouch.y;
   const dt = now - lastTouch.time;
-
-  // Уникаємо помилок при нульовому часі
   if (dt < 1) return;
 
-  // Швидкість руху пальця у пікселях за кадр (приблизно 60 FPS)
   const pxPerFrameX = dx / (dt / 16.66);
   const pxPerFrameY = dy / (dt / 16.66);
 
-  // Якщо швидкість дуже мала — вважаємо, що палець стоїть
   const speed = Math.sqrt(pxPerFrameX ** 2 + pxPerFrameY ** 2);
   if (speed < stopThreshold) {
     player.speedX = 0;
@@ -88,3 +104,13 @@ canvas.addEventListener("touchend", () => {
   player.speedX = 0;
   player.speedY = 0;
 });
+
+// === Основний цикл ===
+function loop() {
+  drawBackground();
+  updatePlayer();
+  drawPlayer();
+  requestAnimationFrame(loop);
+}
+
+loop();
