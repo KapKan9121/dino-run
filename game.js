@@ -7,7 +7,7 @@ canvas.height = innerHeight;
 // === Гравець ===
 const player = {
   x: canvas.width / 2,
-  y: canvas.height * 0.75, // нижче середини
+  y: canvas.height * 0.75,
   speedX: 0,
   speedY: 0,
   width: 60,
@@ -34,6 +34,9 @@ const bullets = [];
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png";
 let bgFarY = 0;
+
+// === Рахунок ===
+let score = 0;
 
 // === Малювання гравця ===
 function drawPlayer() {
@@ -67,6 +70,13 @@ function drawBullets() {
   });
 }
 
+// === Малювання рахунку ===
+function drawScore() {
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("Знищено: " + score, 10, 30);
+}
+
 // === Оновлення гравця ===
 function updatePlayer() {
   player.x += player.speedX;
@@ -79,7 +89,7 @@ function updatePlayer() {
 function updateEnemy() {
   enemy.y += enemy.speedY;
   if (enemy.y > canvas.height + enemy.height) {
-    resetGame();
+    resetEnemy();
   }
 }
 
@@ -101,7 +111,8 @@ function checkCollision() {
       b.y < enemy.y + enemy.height / 2
     ) {
       bullets.splice(i, 1);
-      resetGame();
+      score++;
+      resetEnemy();
     }
   });
 
@@ -111,7 +122,7 @@ function checkCollision() {
     player.y < enemy.y + enemy.height / 2 &&
     player.y + player.height / 2 > enemy.y - enemy.height / 2
   ) {
-    resetGame();
+    restartGame();
   }
 }
 
@@ -169,13 +180,19 @@ setInterval(() => {
   });
 }, 300);
 
-// === Скидання гри ===
-function resetGame() {
-  player.x = canvas.width / 2;
-  player.y = canvas.height * 0.75;
+// === Скидання ворога ===
+function resetEnemy() {
   enemy.x = Math.random() * (canvas.width - enemy.width) + enemy.width / 2;
   enemy.y = 0;
+}
+
+// === Перезапуск гри ===
+function restartGame() {
+  player.x = canvas.width / 2;
+  player.y = canvas.height * 0.75;
+  resetEnemy();
   bullets.length = 0;
+  score = 0;
 }
 
 // === Основний цикл ===
@@ -188,6 +205,7 @@ function loop() {
   drawPlayer();
   drawEnemy();
   drawBullets();
+  drawScore();
   checkCollision();
   requestAnimationFrame(loop);
 }
