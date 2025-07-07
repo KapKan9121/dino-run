@@ -16,29 +16,46 @@ const player = {
 };
 player.image.src = "images/player/player.png";
 
-// === Ворог ===
-const enemy = {
-  x: canvas.width / 2,
-  y: 0,
-  width: 60,
-  height: 60,
-  speedY: 2,
-  image: new Image()
-};
-enemy.image.src = "images/enemy/enemy.png";
-
-// === Кулі ===
-const bullets = [];
-
 // === Фон ===
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png";
 let bgFarY = 0;
 
+// === Вороги ===
+let enemies = [];
+const enemyImage = new Image();
+enemyImage.src = "images/enemy/enemy.png";
+
+function spawnEnemy() {
+  const enemy = {
+    x: Math.random() * (canvas.width - 60) + 30,
+    y: -60,
+    width: 60,
+    height: 60,
+    speedY: 2 + Math.random() * 2,
+    image: enemyImage
+  };
+  enemies.push(enemy);
+}
+
+// === Кулі ===
+const bullets = [];
+
 // === Рахунок ===
 let score = 0;
 
-// === Малювання гравця ===
+// === Завантаження ===
+let assetsLoaded = 0;
+const totalAssets = 3;
+
+[player.image, backgroundFar, enemyImage].forEach(img => {
+  img.onload = () => {
+    assetsLoaded++;
+    if (assetsLoaded === totalAssets) loop();
+  };
+});
+
+// === Малювання ===
 function drawPlayer() {
   ctx.drawImage(
     player.image,
@@ -49,18 +66,18 @@ function drawPlayer() {
   );
 }
 
-// === Малювання ворога ===
-function drawEnemy() {
-  ctx.drawImage(
-    enemy.image,
-    enemy.x - enemy.width / 2,
-    enemy.y - enemy.height / 2,
-    enemy.width,
-    enemy.height
-  );
+function drawEnemies() {
+  enemies.forEach(e => {
+    ctx.drawImage(
+      e.image,
+      e.x - e.width / 2,
+      e.y - e.height / 2,
+      e.width,
+      e.height
+    );
+  });
 }
 
-// === Малювання куль ===
 function drawBullets() {
   ctx.fillStyle = "white";
   bullets.forEach(b => {
@@ -70,14 +87,13 @@ function drawBullets() {
   });
 }
 
-// === Малювання рахунку ===
 function drawScore() {
   ctx.fillStyle = "white";
   ctx.font = "20px Arial";
   ctx.fillText("Знищено: " + score, 10, 30);
 }
 
-// === Оновлення гравця ===
+// === Оновлення ===
 function updatePlayer() {
   player.x += player.speedX;
   player.y += player.speedY;
@@ -85,15 +101,13 @@ function updatePlayer() {
   player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
 }
 
-// === Оновлення ворога ===
-function updateEnemy() {
-  enemy.y += enemy.speedY;
-  if (enemy.y > canvas.height + enemy.height) {
-    resetEnemy();
-  }
+function updateEnemies() {
+  enemies.forEach((e, i) => {
+    e.y += e.speedY;
+    if (e.y > canvas.height + e.height) enemies.splice(i, 1);
+  });
 }
 
-// === Оновлення куль ===
 function updateBullets() {
   bullets.forEach((b, i) => {
     b.y -= 5;
@@ -101,32 +115,32 @@ function updateBullets() {
   });
 }
 
-// === Перевірка зіткнень ===
-function checkCollision() {
+function checkCollisions() {
   bullets.forEach((b, i) => {
-    if (
-      b.x > enemy.x - enemy.width / 2 &&
-      b.x < enemy.x + enemy.width / 2 &&
-      b.y > enemy.y - enemy.height / 2 &&
-      b.y < enemy.y + enemy.height / 2
-    ) {
-      bullets.splice(i, 1);
-      score++;
-      resetEnemy();
-    }
+    enemies.forEach((e, j) => {
+      if (
+        b.x > e.x - e.width / 2 && b.x < e.x + e.width / 2 &&
+        b.y > e.y - e.height / 2 && b.y < e.y + e.height / 2
+      ) {
+        bullets.splice(i, 1);
+        enemies.splice(j, 1);
+        score++;
+      }
+    });
   });
 
-  if (
-    player.x < enemy.x + enemy.width / 2 &&
-    player.x + player.width / 2 > enemy.x - enemy.width / 2 &&
-    player.y < enemy.y + enemy.height / 2 &&
-    player.y + player.height / 2 > enemy.y - enemy.height / 2
-  ) {
-    restartGame();
-  }
+  enemies.forEach(e => {
+    if (
+      player.x < e.x + e.width / 2 &&
+      player.x + player.width / 2 > e.x - e.width / 2 &&
+      player.y < e.y + e.height / 2 &&
+      player.y + player.height / 2 > e.y - e.height / 2
+    ) {
+      restartGame();
+    }
+  });
 }
 
-// === Малювання фону ===
 function drawBackground() {
   bgFarY += 1.0;
   if (bgFarY >= canvas.height) bgFarY = 0;
@@ -134,7 +148,7 @@ function drawBackground() {
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
 }
 
-// === Керування через сенсор ===
+// === Керування ===
 let lastTouch = null;
 let stopThreshold = 0.5;
 
@@ -172,7 +186,7 @@ canvas.addEventListener("touchend", () => {
   player.speedY = 0;
 });
 
-// === Автоматична стрільба ===
+// === Стрільба ===
 setInterval(() => {
   bullets.push({
     x: player.x,
@@ -180,34 +194,32 @@ setInterval(() => {
   });
 }, 300);
 
-// === Скидання ворога ===
-function resetEnemy() {
-  enemy.x = Math.random() * (canvas.width - enemy.width) + enemy.width / 2;
-  enemy.y = 0;
-}
+// === Поява ворогів залежно від рахунку ===
+setInterval(() => {
+  const enemyCount = Math.min(5 + Math.floor(score / 3), 20);
+  if (enemies.length < enemyCount) spawnEnemy();
+}, 1000);
 
 // === Перезапуск гри ===
 function restartGame() {
   player.x = canvas.width / 2;
   player.y = canvas.height * 0.75;
-  resetEnemy();
+  enemies = [];
   bullets.length = 0;
   score = 0;
 }
 
-// === Основний цикл ===
+// === Цикл ===
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBackground();
   updatePlayer();
-  updateEnemy();
+  updateEnemies();
   updateBullets();
   drawPlayer();
-  drawEnemy();
+  drawEnemies();
   drawBullets();
   drawScore();
-  checkCollision();
+  checkCollisions();
   requestAnimationFrame(loop);
 }
-
-loop();
