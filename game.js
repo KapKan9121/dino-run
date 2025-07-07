@@ -17,35 +17,38 @@ let bullets = [];
 let enemies = [];
 let gameOver = false;
 
-// 👆 Додаткові змінні для джойстик-логіки
-let startTouch = null;
+let lastTouch = null;
 
 canvas.addEventListener("touchstart", (e) => {
   const touch = e.touches[0];
-  startTouch = { x: touch.clientX, y: touch.clientY };
+  lastTouch = { x: touch.clientX, y: touch.clientY };
 });
 
 canvas.addEventListener("touchmove", (e) => {
-  if (!startTouch) return;
   const touch = e.touches[0];
-  const dx = touch.clientX - startTouch.x;
-  const dy = touch.clientY - startTouch.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
+  const current = { x: touch.clientX, y: touch.clientY };
+  const dx = current.x - lastTouch.x;
+  const dy = current.y - lastTouch.y;
 
-  if (dist > 10) {
-    // нормалізований напрямок
-    player.dx = (dx / dist) * player.speed;
-    player.dy = (dy / dist) * player.speed;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  if (distance > 2) {
+    // нормалізований рух
+    const normX = dx / distance;
+    const normY = dy / distance;
+    player.dx = normX * player.speed;
+    player.dy = normY * player.speed;
   } else {
     player.dx = 0;
     player.dy = 0;
   }
+
+  lastTouch = current;
 });
 
 canvas.addEventListener("touchend", () => {
   player.dx = 0;
   player.dy = 0;
-  startTouch = null;
+  lastTouch = null;
 });
 
 function drawPlayer() {
@@ -126,11 +129,11 @@ function gameLoop() {
     return;
   }
 
-  // 🟢 Рух гравця в напрямку пальця
+  // 🟢 Рух гравця тільки під час реального руху пальця
   player.x += player.dx;
   player.y += player.dy;
 
-  // обмеження в межах екрану
+  // Обмеження по екрану
   player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
   player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
 
