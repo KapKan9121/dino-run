@@ -27,12 +27,15 @@ const enemyImage = new Image();
 enemyImage.src = "images/enemy/enemy.png";
 
 function spawnEnemy() {
+  const angle = Math.random() * Math.PI * 2;
   const enemy = {
     x: Math.random() * (canvas.width - 60) + 30,
     y: -60,
     width: 60,
     height: 60,
     speedY: 2 + Math.random() * 2,
+    speedX: Math.sin(angle) * 1.5,
+    directionTimer: 0,
     image: enemyImage
   };
   enemies.push(enemy);
@@ -104,7 +107,17 @@ function updatePlayer() {
 function updateEnemies() {
   enemies.forEach((e, i) => {
     e.y += e.speedY;
-    if (e.y > canvas.height + e.height) enemies.splice(i, 1);
+    e.x += e.speedX;
+
+    e.directionTimer++;
+    if (e.directionTimer % 60 === 0) {
+      const angle = Math.random() * Math.PI * 2;
+      e.speedX = Math.sin(angle) * 1.5;
+    }
+
+    if (e.y > canvas.height + e.height || e.x < -e.width || e.x > canvas.width + e.width) {
+      enemies.splice(i, 1);
+    }
   });
 }
 
