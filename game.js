@@ -7,50 +7,46 @@ canvas.height = window.innerHeight;
 const player = {
   x: canvas.width / 2,
   y: canvas.height - 100,
-  size: 40,
-  speed: 6
+  size: 40
 };
 
 let bullets = [];
-let targetPos = null;
 
-// Автоматична стрільба
+let anchor = null;
+let delta = { x: 0, y: 0 };
+const speedFactor = 0.2;
+
+// автострільба
 setInterval(() => {
   bullets.push({ x: player.x, y: player.y - player.size / 2 });
 }, 500);
 
-// Зчитування позиції пальця
+// старт дотику — запам’ятали точку
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
-  targetPos = { x: t.clientX, y: t.clientY };
+  anchor = { x: t.clientX, y: t.clientY };
 });
 
+// рух — обчислюємо відносний вектор
 canvas.addEventListener("touchmove", (e) => {
+  if (!anchor) return;
   const t = e.touches[0];
-  targetPos = { x: t.clientX, y: t.clientY };
+  delta.x = t.clientX - anchor.x;
+  delta.y = t.clientY - anchor.y;
 });
 
+// палець відірвано — зупинились
 canvas.addEventListener("touchend", () => {
-  targetPos = null;
+  anchor = null;
+  delta.x = 0;
+  delta.y = 0;
 });
 
-// Рух гравця — завжди до позиції пальця
 function updatePlayer() {
-  if (targetPos) {
-    const dx = targetPos.x - player.x;
-    const dy = targetPos.y - player.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+  player.x += delta.x * speedFactor;
+  player.y += delta.y * speedFactor;
 
-    if (distance > 1) {
-      const moveX = (dx / distance) * player.speed;
-      const moveY = (dy / distance) * player.speed;
-
-      player.x += moveX;
-      player.y += moveY;
-    }
-  }
-
-  // Межі
+  // межі
   player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
   player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
 }
