@@ -33,8 +33,8 @@ function spawnEnemy() {
     y: -60,
     width: 60,
     height: 60,
-    speedY: 2 + Math.random() * 2,
-    speedX: Math.sin(angle) * 1.5,
+    speedY: 1 + Math.random() * 1.5, // 🔽 Зменшено швидкість ворога
+    speedX: Math.sin(angle) * 1.2,
     directionTimer: 0,
     image: enemyImage
   };
@@ -50,13 +50,41 @@ let score = 0;
 // === Завантаження ===
 let assetsLoaded = 0;
 const totalAssets = 3;
+let loadingProgress = 0;
 
 [player.image, backgroundFar, enemyImage].forEach(img => {
   img.onload = () => {
     assetsLoaded++;
+    loadingProgress = assetsLoaded / totalAssets;
     if (assetsLoaded === totalAssets) loop();
   };
 });
+
+// === Екран завантаження ===
+function drawLoadingScreen() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const radius = 40;
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = "#ccc";
+  ctx.lineWidth = 8;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, -Math.PI / 2, (Math.PI * 2 * loadingProgress) - Math.PI / 2);
+  ctx.strokeStyle = "lime";
+  ctx.lineWidth = 8;
+  ctx.stroke();
+
+  if (assetsLoaded < totalAssets) {
+    requestAnimationFrame(drawLoadingScreen);
+  }
+}
+drawLoadingScreen();
 
 // === Малювання ===
 function drawPlayer() {
@@ -109,13 +137,21 @@ function updateEnemies() {
     e.y += e.speedY;
     e.x += e.speedX;
 
+    if (e.x < e.width / 2) {
+      e.x = e.width / 2;
+      e.speedX *= -1;
+    } else if (e.x > canvas.width - e.width / 2) {
+      e.x = canvas.width - e.width / 2;
+      e.speedX *= -1;
+    }
+
     e.directionTimer++;
     if (e.directionTimer % 60 === 0) {
       const angle = Math.random() * Math.PI * 2;
-      e.speedX = Math.sin(angle) * 1.5;
+      e.speedX = Math.sin(angle) * 1.2;
     }
 
-    if (e.y > canvas.height + e.height || e.x < -e.width || e.x > canvas.width + e.width) {
+    if (e.y > canvas.height + e.height) {
       enemies.splice(i, 1);
     }
   });
