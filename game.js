@@ -8,33 +8,44 @@ let player = {
   x: canvas.width / 2,
   y: canvas.height - 80,
   size: 40,
-  speed: 5
+  speed: 5,
+  dx: 0,
+  dy: 0
 };
 
 let bullets = [];
 let enemies = [];
 let gameOver = false;
 
-// 🎯 Координати цілі, куди гравець рухається
-let target = { x: player.x, y: player.y };
-let isTouching = false;
+// 👆 Додаткові змінні для джойстик-логіки
+let startTouch = null;
 
-// 📱 Сенсорне керування
 canvas.addEventListener("touchstart", (e) => {
   const touch = e.touches[0];
-  target.x = touch.clientX;
-  target.y = touch.clientY;
-  isTouching = true;
+  startTouch = { x: touch.clientX, y: touch.clientY };
 });
 
 canvas.addEventListener("touchmove", (e) => {
+  if (!startTouch) return;
   const touch = e.touches[0];
-  target.x = touch.clientX;
-  target.y = touch.clientY;
+  const dx = touch.clientX - startTouch.x;
+  const dy = touch.clientY - startTouch.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist > 10) {
+    // нормалізований напрямок
+    player.dx = (dx / dist) * player.speed;
+    player.dy = (dy / dist) * player.speed;
+  } else {
+    player.dx = 0;
+    player.dy = 0;
+  }
 });
 
 canvas.addEventListener("touchend", () => {
-  isTouching = false;
+  player.dx = 0;
+  player.dy = 0;
+  startTouch = null;
 });
 
 function drawPlayer() {
@@ -65,7 +76,6 @@ function spawnEnemy() {
   enemies.push({ x, y: -40 });
 }
 
-// 💥 Зіткнення снарядів з ворогами
 function checkBulletEnemyCollision() {
   bullets.forEach((bullet, bIndex) => {
     enemies.forEach((enemy, eIndex) => {
@@ -80,7 +90,6 @@ function checkBulletEnemyCollision() {
   });
 }
 
-// 🔴 Зіткнення ворогів із гравцем
 function checkEnemyPlayerCollision() {
   enemies.forEach(enemy => {
     const dx = player.x - enemy.x;
@@ -117,18 +126,13 @@ function gameLoop() {
     return;
   }
 
-  // 📦 Плавний рух корабля до target.x/y
-  if (isTouching) {
-    const dx = target.x - player.x;
-    const dy = target.y - player.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+  // 🟢 Рух гравця в напрямку пальця
+  player.x += player.dx;
+  player.y += player.dy;
 
-    if (dist > 1) {
-      const speed = player.speed;
-      player.x += (dx / dist) * speed;
-      player.y += (dy / dist) * speed;
-    }
-  }
+  // обмеження в межах екрану
+  player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
+  player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
 
   drawPlayer();
   drawBullets();
