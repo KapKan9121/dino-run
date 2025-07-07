@@ -4,7 +4,6 @@ const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-// Гравець — трикутник
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
@@ -14,12 +13,9 @@ const player = {
   maxSpeed: 4
 };
 
-let joystickStart = null;
-let joystickMove = null;
-const joystickRadius = 80;
-const knobRadius = 30;
+let touchStart = null;
+const deadZone = 5; // Поріг, нижче якого рух ігнорується
 
-// Малюємо гравця
 function drawPlayer() {
   ctx.fillStyle = "lime";
   ctx.beginPath();
@@ -30,28 +26,6 @@ function drawPlayer() {
   ctx.fill();
 }
 
-// Малюємо джойстик
-function drawJoystick() {
-  if (!joystickStart || !joystickMove) return;
-
-  const baseX = joystickStart.x;
-  const baseY = joystickStart.y;
-  const knobX = joystickMove.x;
-  const knobY = joystickMove.y;
-
-  ctx.strokeStyle = "#888";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(baseX, baseY, joystickRadius, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.fillStyle = "#ccc";
-  ctx.beginPath();
-  ctx.arc(knobX, knobY, knobRadius, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Оновлення позиції гравця
 function updatePlayer() {
   player.x += player.speedX;
   player.y += player.speedY;
@@ -60,45 +34,45 @@ function updatePlayer() {
   player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
 }
 
-// Основний цикл
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   updatePlayer();
   drawPlayer();
-  drawJoystick();
   requestAnimationFrame(loop);
 }
 loop();
 
-// Обробка торкань
+// Коли палець торкнувся — запам’ятовуємо початкову позицію
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
-  joystickStart = { x: t.clientX, y: t.clientY };
-  joystickMove = { x: t.clientX, y: t.clientY };
+  touchStart = { x: t.clientX, y: t.clientY };
 });
 
+// Коли палець рухається — обчислюємо напрям і силу руху
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
-  joystickMove = { x: t.clientX, y: t.clientY };
+  if (!touchStart) return;
 
-  const dx = joystickMove.x - joystickStart.x;
-  const dy = joystickMove.y - joystickStart.y;
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  const maxDistance = joystickRadius;
 
-  const strength = Math.min(distance / maxDistance, 1);
+  if (distance < deadZone) {
+    player.speedX = 0;
+    player.speedY = 0;
+    return;
+  }
+
   const angle = Math.atan2(dy, dx);
+  const strength = Math.min(distance / 100, 1); // нормалізація
 
   player.speedX = Math.cos(angle) * player.maxSpeed * strength;
   player.speedY = Math.sin(angle) * player.maxSpeed * strength;
-
-  joystickMove.x = joystickStart.x + Math.cos(angle) * Math.min(distance, maxDistance);
-  joystickMove.y = joystickStart.y + Math.sin(angle) * Math.min(distance, maxDistance);
 });
 
+// Коли палець відпущено — повна зупинка
 canvas.addEventListener("touchend", () => {
-  joystickStart = null;
-  joystickMove = null;
+  touchStart = null;
   player.speedX = 0;
   player.speedY = 0;
 });
