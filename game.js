@@ -1,35 +1,81 @@
-let lastTouch = null;
-let moveThreshold = 2; // якщо рух менше ніж 2px – вважаємо, що палець стоїть
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-canvas.addEventListener("touchstart", (e) => {
+const player = {
+  x: canvas.width / 2,
+  y: canvas.height - 100,
+  size: 40,
+  speedX: 0,
+  speedY: 0,
+  maxSpeed: 7
+};
+
+let touchStart = null;
+
+canvas.addEventListener("touchstart", e => {
   const touch = e.touches[0];
-  lastTouch = { x: touch.clientX, y: touch.clientY };
+  touchStart = { x: touch.clientX, y: touch.clientY };
 });
 
-canvas.addEventListener("touchmove", (e) => {
+canvas.addEventListener("touchmove", e => {
+  if (!touchStart) return;
   const touch = e.touches[0];
-  const current = { x: touch.clientX, y: touch.clientY };
+  const dx = touch.clientX - touchStart.x;
+  const dy = touch.clientY - touchStart.y;
 
-  const dx = current.x - lastTouch.x;
-  const dy = current.y - lastTouch.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  // Чутливість і обмеження швидкості
+  const factor = 0.2;
+  player.speedX = dx * factor;
+  player.speedY = dy * factor;
 
-  if (distance > moveThreshold) {
-    const normX = dx / distance;
-    const normY = dy / distance;
-    player.dx = normX * player.speed;
-    player.dy = normY * player.speed;
-  } else {
-    // палець стоїть — зупиняємось
-    player.dx = 0;
-    player.dy = 0;
-  }
-
-  lastTouch = current;
+  // Обмеження максимальної швидкості
+  player.speedX = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.speedX));
+  player.speedY = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.speedY));
 });
 
 canvas.addEventListener("touchend", () => {
-  player.dx = 0;
-  player.dy = 0;
-  lastTouch = null;
+  player.speedX = 0;
+  player.speedY = 0;
+  touchStart = null;
 });
+
+// Стрільба
+let bullets = [];
+setInterval(() => {
+  bullets.push({ x: player.x, y: player.y - player.size / 2 });
+}, 500);
+
+function drawPlayer() {
+  ctx.fillStyle = "lime";
+  ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size);
+}
+
+function drawBullets() {
+  ctx.fillStyle = "yellow";
+  bullets.forEach(b => {
+    ctx.fillRect(b.x - 3, b.y - 10, 6, 10);
+    b.y -= 10;
+  });
+  bullets = bullets.filter(b => b.y > 0);
+}
+
+function updatePlayerPosition() {
+  player.x += player.speedX;
+  player.y += player.speedY;
+
+  // Межі
+  player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
+  player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
+}
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  updatePlayerPosition();
+  drawPlayer();
+  drawBullets();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
