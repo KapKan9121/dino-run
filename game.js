@@ -15,6 +15,28 @@ let bullets = [];
 let enemies = [];
 let gameOver = false;
 
+// 🎯 Координати цілі, куди гравець рухається
+let target = { x: player.x, y: player.y };
+let isTouching = false;
+
+// 📱 Сенсорне керування
+canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  target.x = touch.clientX;
+  target.y = touch.clientY;
+  isTouching = true;
+});
+
+canvas.addEventListener("touchmove", (e) => {
+  const touch = e.touches[0];
+  target.x = touch.clientX;
+  target.y = touch.clientY;
+});
+
+canvas.addEventListener("touchend", () => {
+  isTouching = false;
+});
+
 function drawPlayer() {
   ctx.fillStyle = "lime";
   ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size);
@@ -39,10 +61,11 @@ function drawEnemies() {
 }
 
 function spawnEnemy() {
-  enemies.push({ x: Math.random() * (canvas.width - 40) + 20, y: -40 });
+  const x = Math.random() * (canvas.width - 40) + 20;
+  enemies.push({ x, y: -40 });
 }
 
-// 🔥 Перевірка зіткнень снарядів з ворогами
+// 💥 Зіткнення снарядів з ворогами
 function checkBulletEnemyCollision() {
   bullets.forEach((bullet, bIndex) => {
     enemies.forEach((enemy, eIndex) => {
@@ -57,7 +80,7 @@ function checkBulletEnemyCollision() {
   });
 }
 
-// 💥 Перевірка зіткнення ворога з гравцем
+// 🔴 Зіткнення ворогів із гравцем
 function checkEnemyPlayerCollision() {
   enemies.forEach(enemy => {
     const dx = player.x - enemy.x;
@@ -69,23 +92,19 @@ function checkEnemyPlayerCollision() {
   });
 }
 
+// 🔫 Автострільба
 setInterval(() => {
   if (!gameOver) {
     bullets.push({ x: player.x, y: player.y - player.size / 2 });
   }
 }, 500);
 
+// 👾 Спавн ворогів
 setInterval(() => {
   if (!gameOver) {
     spawnEnemy();
   }
 }, 2000);
-
-canvas.addEventListener("touchmove", (e) => {
-  const touch = e.touches[0];
-  player.x = touch.clientX;
-  player.y = touch.clientY;
-});
 
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -96,6 +115,19 @@ function gameLoop() {
     ctx.textAlign = "center";
     ctx.fillText("💀 GAME OVER 💀", canvas.width / 2, canvas.height / 2);
     return;
+  }
+
+  // 📦 Плавний рух корабля до target.x/y
+  if (isTouching) {
+    const dx = target.x - player.x;
+    const dy = target.y - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > 1) {
+      const speed = player.speed;
+      player.x += (dx / dist) * speed;
+      player.y += (dy / dist) * speed;
+    }
   }
 
   drawPlayer();
