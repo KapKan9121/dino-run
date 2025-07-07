@@ -20,8 +20,8 @@ player.image.src = "images/player/player.png"; // заміни шлях на с�
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png"; // далекі зірки
 
-const backgroundNear = new Image();
-backgroundNear.src = "images/fon/layer_near.png"; // метеорити (з прозорим фоном)
+//const backgroundNear = new Image();
+//backgroundNear.src = "images/fon/layer_near.png"; // метеорити (з прозорим фоном)
 
 let bgFarY = 0;
 let bgNearY = 0;
@@ -50,16 +50,16 @@ function updatePlayer() {
 // === Малювання фону ===
 function drawBackground() {
   // Далека частина фону
-  bgFarY += 0.3;
+  bgFarY += 1.0;
   if (bgFarY >= canvas.height) bgFarY = 0;
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
 
   // Ближча частина фону (метеорити)
-  bgNearY += 1.0;
-  if (bgNearY >= canvas.height) bgNearY = 0;
-  ctx.drawImage(backgroundNear, 0, bgNearY, canvas.width, canvas.height);
-  ctx.drawImage(backgroundNear, 0, bgNearY - canvas.height, canvas.width, canvas.height);
+  //bgNearY += 1.3;
+  //if (bgNearY >= canvas.height) bgNearY = 0;
+  //ctx.drawImage(backgroundNear, 0, bgNearY, canvas.width, canvas.height);
+  //ctx.drawImage(backgroundNear, 0, bgNearY - canvas.height, canvas.width, canvas.height);
 }
 
 // === Керування через сенсор ===
@@ -114,3 +114,4 @@ function loop() {
 }
 
 loop();
+
