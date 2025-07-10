@@ -113,14 +113,9 @@ function update(dt) {
         b.y < e.y + e.height &&
         b.y + b.height > e.y
       ) {
-        e.health -= 1;
+        enemies.splice(i, 1);
         bullets.splice(j, 1);
-        if (e.health <= 0) {
-          enemies.splice(i, 1);
-          score++;
-        } else {
-          e.showHealth = true;
-        }
+        score++;
       }
     });
   });
@@ -130,7 +125,6 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
-
   ctx.drawImage(playerImg, player.x - player.width / 2, player.y - player.height / 2, player.width, player.height);
 
   bullets.forEach(b => {
@@ -140,20 +134,6 @@ function draw() {
 
   enemies.forEach(e => {
     ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
-
-    if (e.showHealth) {
-      const barWidth = e.width;
-      const barHeight = 5;
-      const percent = e.health / e.maxHealth;
-
-      ctx.fillStyle = "#333";
-      ctx.fillRect(e.x, e.y - 8, barWidth, barHeight);
-
-      ctx.fillStyle = "#0f0";
-      ctx.beginPath();
-      ctx.roundRect(e.x, e.y - 8, barWidth * percent, barHeight, 3);
-      ctx.fill();
-    }
   });
 
   ctx.fillStyle = "white";
@@ -178,10 +158,7 @@ setInterval(() => {
     y: -60,
     width: eWidth,
     height: 50,
-    speed: 120 + Math.random() * 80,
-    health: 3,
-    maxHealth: 3,
-    showHealth: false
+    speed: 120 + Math.random() * 80
   });
 }, 1000);
 
@@ -194,7 +171,7 @@ function restartGame() {
   enemies.length = 0;
 }
 
-// === Дочекаємось завантаження ===
+// === Запуск після завантаження ===
 Promise.all([
   new Promise(res => playerImg.onload = res),
   new Promise(res => backgroundFar.onload = res),
