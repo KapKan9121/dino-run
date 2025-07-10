@@ -1,49 +1,36 @@
-// === Canvas Setup ===
+// === Ініціалізація канвасу ===
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-// === Game Variables ===
-let bullets = [];
-let enemies = [];
-let kills = 0;
+// === Завантаження зображень ===
+const playerImg = new Image();
+playerImg.src = "images/player/player.png";
 
-// === Player ===
+const backgroundFar = new Image();
+backgroundFar.src = "images/fon/layer_far.png";
+
+const enemyImg = new Image();
+enemyImg.src = "images/enemy/enemy.png";
+
+// === Ігрові об'єкти ===
 const player = {
   x: canvas.width / 2,
-  y: canvas.height * 0.8,
-  w: 60,
-  h: 60,
+  y: canvas.height * 0.75,
+  width: 60,
+  height: 60,
   speedX: 0,
-  speedY: 0,
-  image: new Image()
+  speedY: 0
 };
-player.image.src = "images/player/player.png";
 
-// === Background ===
-const bgFar = new Image();
-bgFar.src = "images/fon/layer_far.png";
+const bullets = [];
+const enemies = [];
+
+let score = 0;
 let bgFarY = 0;
 
-// === Enemy ===
-const enemyImg = new Image();
-enemyImg.src = "images/enemies/enemy1.png";
-
-function spawnEnemy() {
-  enemies.push({
-    x: Math.random() * (canvas.width - 50),
-    y: -60,
-    w: 50,
-    h: 50,
-    vx: (Math.random() - 0.5) * 2,
-    vy: 40,
-    hp: 100,
-    lastHit: 0
-  });
-}
-
-// === Touch Control ===
+// === Сенсорне керування ===
 let lastTouch = null;
 let stopThreshold = 0.5;
 
@@ -57,8 +44,8 @@ canvas.addEventListener("touchstart", (e) => {
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
   const now = performance.now();
-  if (!lastTouch) return;
 
+  if (!lastTouch) return;
   const dx = t.clientX - lastTouch.x;
   const dy = t.clientY - lastTouch.y;
   const dt = now - lastTouch.time;
@@ -66,15 +53,10 @@ canvas.addEventListener("touchmove", (e) => {
 
   const pxPerFrameX = dx / (dt / 16.66);
   const pxPerFrameY = dy / (dt / 16.66);
-
   const speed = Math.sqrt(pxPerFrameX ** 2 + pxPerFrameY ** 2);
-  if (speed < stopThreshold) {
-    player.speedX = 0;
-    player.speedY = 0;
-  } else {
-    player.speedX = pxPerFrameX;
-    player.speedY = pxPerFrameY;
-  }
+
+  player.speedX = speed < stopThreshold ? 0 : pxPerFrameX;
+  player.speedY = speed < stopThreshold ? 0 : pxPerFrameY;
 
   lastTouch = { x: t.clientX, y: t.clientY, time: now };
 });
@@ -85,119 +67,136 @@ canvas.addEventListener("touchend", () => {
   player.speedY = 0;
 });
 
-// === Helpers ===
-function drawBackground(dt) {
-  bgFarY += 40 * dt;
-  if (bgFarY > canvas.height) bgFarY = 0;
-  ctx.drawImage(bgFar, 0, bgFarY, canvas.width, canvas.height);
-  ctx.drawImage(bgFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
-}
-
-function drawPlayer() {
-  ctx.drawImage(player.image, player.x - player.w / 2, player.y - player.h / 2, player.w, player.h);
-}
-
-function drawBullet(b) {
-  ctx.fillStyle = "white";
-  ctx.fillRect(b.x - 2, b.y, 4, 10);
-}
-
-function drawHP(e) {
-  const hpW = 40;
-  const percent = e.hp / 100;
-  const barX = e.x + e.w / 2 - hpW / 2;
-  const barY = e.y - 10;
-
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(barX, barY, hpW, 6);
-  ctx.fillStyle = "lime";
-  ctx.fillRect(barX, barY, hpW * percent, 6);
-  ctx.strokeStyle = "#000";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(barX, barY, hpW, 6);
-}
-
-function drawKills() {
-  ctx.fillStyle = "white";
-  ctx.font = "16px sans-serif";
-  ctx.fillText(`Kills: ${kills}`, 10, 20);
-}
-
+// === Головний цикл з deltaTime ===
 let lastTime = performance.now();
-let shootTimer = 0;
-function loop() {
-  const now = performance.now();
-  const dt = (now - lastTime) / 1000;
+
+function gameLoop(now) {
+  const deltaTime = (now - lastTime) / 1000;
   lastTime = now;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawBackground(dt);
-  drawPlayer();
-
-  // Update player
-  player.x += player.speedX;
-  player.y += player.speedY;
-  player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
-  player.y = Math.max(player.h / 2, Math.min(canvas.height - player.h / 2, player.y));
-
-  // Shooting
-  shootTimer += dt;
-  if (shootTimer >= 0.3) {
-    bullets.push({ x: player.x, y: player.y - 30 });
-    shootTimer = 0;
-  }
-
-  // Bullets
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    const b = bullets[i];
-    b.y -= 500 * dt;
-    if (b.y < -10) bullets.splice(i, 1);
-    else drawBullet(b);
-  }
-
-  // Enemies
-  for (let ei = enemies.length - 1; ei >= 0; ei--) {
-    const e = enemies[ei];
-    e.x += e.vx * dt * 60;
-    e.y += e.vy * dt;
-    if (e.x < 0 || e.x + e.w > canvas.width) e.vx *= -1;
-    ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
-    if (now - e.lastHit < 800) drawHP(e);
-
-    // Bullet collision
-    for (let bi = bullets.length - 1; bi >= 0; bi--) {
-      const b = bullets[bi];
-      if (
-        b.x > e.x && b.x < e.x + e.w &&
-        b.y > e.y && b.y < e.y + e.h
-      ) {
-        bullets.splice(bi, 1);
-        e.hp -= 25;
-        e.lastHit = now;
-        if (e.hp <= 0) {
-          enemies.splice(ei, 1);
-          kills++;
-        }
-        break;
-      }
-    }
-
-    // Player collision
-    if (
-      player.x + player.w/2 > e.x &&
-      player.x - player.w/2 < e.x + e.w &&
-      player.y + player.h/2 > e.y &&
-      player.y - player.h/2 < e.y + e.h
-    ) {
-      location.reload();
-    }
-
-    if (e.y > canvas.height + e.h) enemies.splice(ei, 1);
-  }
-
-  drawKills();
-  requestAnimationFrame(loop);
+  update(deltaTime);
+  draw();
+  requestAnimationFrame(gameLoop);
 }
 
-setInterval(spawnEnemy, 1200);
-loop();
+function update(dt) {
+  player.x += player.speedX;
+  player.y += player.speedY;
+  player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
+  player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
+
+  bgFarY += 100 * dt;
+  if (bgFarY > canvas.height) bgFarY = 0;
+
+  bullets.forEach((b, i) => {
+    b.y -= 400 * dt;
+    if (b.y < -10) bullets.splice(i, 1);
+  });
+
+  enemies.forEach((e, i) => {
+    e.y += e.speed * dt;
+    if (e.y > canvas.height + e.height) enemies.splice(i, 1);
+
+    if (
+      e.x < player.x + player.width / 2 &&
+      e.x + e.width > player.x - player.width / 2 &&
+      e.y < player.y + player.height / 2 &&
+      e.y + e.height > player.y - player.height / 2
+    ) {
+      restartGame();
+    }
+
+    bullets.forEach((b, j) => {
+      if (
+        b.x < e.x + e.width &&
+        b.x + b.width > e.x &&
+        b.y < e.y + e.height &&
+        b.y + b.height > e.y
+      ) {
+        e.health -= 1;
+        bullets.splice(j, 1);
+        if (e.health <= 0) {
+          enemies.splice(i, 1);
+          score++;
+        } else {
+          e.showHealth = true;
+        }
+      }
+    });
+  });
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
+  ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
+
+  ctx.drawImage(playerImg, player.x - player.width / 2, player.y - player.height / 2, player.width, player.height);
+
+  bullets.forEach(b => {
+    ctx.fillStyle = "white";
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+  });
+
+  enemies.forEach(e => {
+    ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
+
+    if (e.showHealth) {
+      const barWidth = e.width;
+      const barHeight = 5;
+      const percent = e.health / e.maxHealth;
+
+      ctx.fillStyle = "#333";
+      ctx.fillRect(e.x, e.y - 8, barWidth, barHeight);
+
+      ctx.fillStyle = "#0f0";
+      ctx.beginPath();
+      ctx.roundRect(e.x, e.y - 8, barWidth * percent, barHeight, 3);
+      ctx.fill();
+    }
+  });
+
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("Score: " + score, 10, 30);
+}
+
+// === Спавн ===
+setInterval(() => {
+  bullets.push({
+    x: player.x,
+    y: player.y - player.height / 2,
+    width: 4,
+    height: 10
+  });
+}, 250);
+
+setInterval(() => {
+  const eWidth = 50;
+  enemies.push({
+    x: Math.random() * (canvas.width - eWidth),
+    y: -60,
+    width: eWidth,
+    height: 50,
+    speed: 120 + Math.random() * 80,
+    health: 3,
+    maxHealth: 3,
+    showHealth: false
+  });
+}, 1000);
+
+// === Перезапуск гри ===
+function restartGame() {
+  score = 0;
+  player.x = canvas.width / 2;
+  player.y = canvas.height * 0.75;
+  bullets.length = 0;
+  enemies.length = 0;
+}
+
+// === Дочекаємось завантаження ===
+Promise.all([
+  new Promise(res => playerImg.onload = res),
+  new Promise(res => backgroundFar.onload = res),
+  new Promise(res => enemyImg.onload = res)
+]).then(() => requestAnimationFrame(gameLoop));
