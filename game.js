@@ -1,142 +1,170 @@
-
-// === Ініціалізація ===
+<script>
+// === Canvas init ===
 const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-canvas.width = innerWidth;
+const ctx    = canvas.getContext("2d");
+canvas.width  = innerWidth;
 canvas.height = innerHeight;
 
-// === Гравець ===
+// === Assets ===
+const playerImg    = new Image();
+playerImg.src      = "images/player/player.png";
+
+const bgImg        = new Image();
+bgImg.src          = "images/fon/layer_far.png";
+
+const enemyImg     = new Image();
+enemyImg.src       = "images/enemy/enemy.png";
+
+// === Player ===
 const player = {
   x: canvas.width / 2,
   y: canvas.height * 0.75,
-  width: 60,
-  height: 60,
+  w: 60,
+  h: 60,
   speedX: 0,
-  speedY: 0,
-  image: new Image()
+  speedY: 0
 };
-player.image.src = "images/player/player.png";
 
-// === Фон ===
-const backgroundFar = new Image();
-backgroundFar.src = "images/fon/layer_far.png";
-let bgFarY = 0;
-
-// === Кулі ===
+// === Arrays ===
 const bullets = [];
-const BULLET_SPEED = 8;
-
-// === Вороги ===
 const enemies = [];
-const ENEMY_SPAWN_INTERVAL = 1500;
+
+// === Game vars ===
+let bgY   = 0;
+let score = 0;
 let lastEnemySpawn = 0;
 
-// === Лічильник ===
-let score = 0;
-
-// === Завантаження гри ===
-let assetsLoaded = 0;
-player.image.onload = () => assetsLoaded++;
-backgroundFar.onload = () => assetsLoaded++;
-
-// === Керування ===
+// === Touch control ===
 let lastTouch = null;
-let stopThreshold = 0.5;
+const STOP_THRESHOLD = 0.5;
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   lastTouch = { x: t.clientX, y: t.clientY, time: performance.now() };
-  player.speedX = 0;
-  player.speedY = 0;
+  player.speedX = player.speedY = 0;
 });
+
 canvas.addEventListener("touchmove", e => {
-  const t = e.touches[0];
+  const t  = e.touches[0];
   const now = performance.now();
   if (!lastTouch) return;
+
   const dx = t.clientX - lastTouch.x;
   const dy = t.clientY - lastTouch.y;
   const dt = now - lastTouch.time;
   if (dt < 1) return;
-  const pxPerFrameX = dx / (dt / 16.66);
-  const pxPerFrameY = dy / (dt / 16.66);
-  const speed = Math.sqrt(pxPerFrameX ** 2 + pxPerFrameY ** 2);
-  if (speed < stopThreshold) {
-    player.speedX = 0;
-    player.speedY = 0;
+
+  const vx = dx / (dt / 16.66);
+  const vy = dy / (dt / 16.66);
+  const sp = Math.hypot(vx, vy);
+
+  if (sp < STOP_THRESHOLD) {
+    player.speedX = player.speedY = 0;
   } else {
-    player.speedX = pxPerFrameX;
-    player.speedY = pxPerFrameY;
+    player.speedX = vx;
+    player.speedY = vy;
   }
   lastTouch = { x: t.clientX, y: t.clientY, time: now };
 });
+
 canvas.addEventListener("touchend", () => {
   lastTouch = null;
-  player.speedX = 0;
-  player.speedY = 0;
+  player.speedX = player.speedY = 0;
 });
 
-// === Логіка ===
-function drawPlayer() {
-  ctx.drawImage(player.image, player.x - player.width / 2, player.y - player.height / 2, player.width, player.height);
+// === Utility — rounded-rectangle fill ===
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
-function updatePlayer(deltaTime) {
+
+// === Spawning ===
+function spawnEnemy() {
+  const w = 50, h = 50;
+  enemies.push({
+    x: Math.random() * (canvas.width - w),
+    y: -60,
+    w,  h,
+    speed: 80 + Math.random() * 60,
+    dirX: (Math.random() < 0.5 ? -1 : 1) * 40,   // горизонтальний дрейф
+    hp: 3,
+    maxHp: 3,
+    showHp: false
+  });
+}
+
+// === Shooting ===
+setInterval(() => {
+  bullets.push({ x: player.x, y: player.y - player.h / 2, w: 4, h: 10 });
+}, 250);
+
+// === Main loop ===
+let lastT = performance.now();
+Promise.all([playerImg, bgImg, enemyImg].map(img => new Promise(res => img.onload = res)))
+  .then(() => requestAnimationFrame(loop));
+
+function loop(now) {
+  const dt = (now - lastT) / 1000;
+  lastT = now;
+
+  update(dt, now);
+  draw();
+
+  requestAnimationFrame(loop);
+}
+
+// === Update ===
+function update(dt, now) {
+  // background scroll
+  bgY += 100 * dt;
+  if (bgY > canvas.height) bgY = 0;
+
+  // player physics
   player.x += player.speedX;
   player.y += player.speedY;
-  player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
-  player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
-}
-function drawBackground(deltaTime) {
-  bgFarY += 100 * deltaTime;
-  if (bgFarY > canvas.height) bgFarY = 0;
-  ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
-  ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
-}
-function spawnEnemy() {
-  enemies.push({
-    x: Math.random() * (canvas.width - 50),
-    y: -60,
-    width: 50,
-    height: 50,
-    speed: 100 + Math.random() * 50,
-    hp: 3,
-    maxHp: 3
-  });
-}
-function drawEnemies(deltaTime) {
-  enemies.forEach((e, index) => {
-    e.y += e.speed * deltaTime;
-    // Малюємо ворога
-    ctx.fillStyle = "gray";
-    ctx.fillRect(e.x, e.y, e.width, e.height);
-    // Малюємо шкалу здоров'я
-    const hpRatio = e.hp / e.maxHp;
-    ctx.fillStyle = "red";
-    ctx.fillRect(e.x, e.y - 10, e.width, 5);
-    ctx.fillStyle = "lime";
-    ctx.fillRect(e.x, e.y - 10, e.width * hpRatio, 5);
-    // Якщо ворог виходить за межі — видаляємо
-    if (e.y > canvas.height + 50) enemies.splice(index, 1);
-  });
-}
-function drawBullets(deltaTime) {
+  player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
+  player.y = Math.max(player.h / 2, Math.min(canvas.height - player.h / 2, player.y));
+
+  // bullets
   bullets.forEach((b, i) => {
-    b.y -= BULLET_SPEED;
-    ctx.fillStyle = "white";
-    ctx.fillRect(b.x, b.y, 5, 10);
-    if (b.y < 0) bullets.splice(i, 1);
+    b.y -= 400 * dt;
+    if (b.y < -b.h) bullets.splice(i, 1);
   });
-}
-function handleCollisions() {
-  bullets.forEach((b, bi) => {
-    enemies.forEach((e, ei) => {
-      if (
-        b.x < e.x + e.width &&
-        b.x + 5 > e.x &&
-        b.y < e.y + e.height &&
-        b.y + 10 > e.y
-      ) {
-        e.hp--;
+
+  // enemies movement & collisions
+  enemies.forEach((e, ei) => {
+    e.y += e.speed * dt;
+    e.x += e.dirX * dt;
+
+    // відскок від боків
+    if (e.x < 0 || e.x + e.w > canvas.width) e.dirX *= -1;
+
+    // вихід за межі екрана
+    if (e.y > canvas.height + e.h) enemies.splice(ei, 1);
+
+    // зіткнення з гравцем
+    if (
+      e.x < player.x + player.w / 2 &&
+      e.x + e.w > player.x - player.w / 2 &&
+      e.y < player.y + player.h / 2 &&
+      e.y + e.h > player.y - player.h / 2
+    ) restartGame();
+
+    // попадання куль
+    bullets.forEach((b, bi) => {
+      if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
         bullets.splice(bi, 1);
+        e.hp--;
+        e.showHp = true;          // вмикаємо шкалу
         if (e.hp <= 0) {
           enemies.splice(ei, 1);
           score++;
@@ -144,44 +172,65 @@ function handleCollisions() {
       }
     });
   });
+
+  // spawn logic
+  if (now - lastEnemySpawn > 1200) {
+    spawnEnemy();
+    lastEnemySpawn = now;
+  }
 }
-function drawScore() {
+let lastEnemySpawn = performance.now();
+
+// === Draw ===
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // background
+  ctx.drawImage(bgImg, 0, bgY, canvas.width, canvas.height);
+  ctx.drawImage(bgImg, 0, bgY - canvas.height, canvas.width, canvas.height);
+
+  // player
+  ctx.drawImage(playerImg, player.x - player.w / 2, player.y - player.h / 2, player.w, player.h);
+
+  // bullets
+  ctx.fillStyle = "white";
+  bullets.forEach(b => ctx.fillRect(b.x - b.w / 2, b.y, b.w, b.h));
+
+  // enemies + health bars
+  enemies.forEach(e => {
+    ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
+
+    if (e.showHp && e.hp < e.maxHp) {
+      const ratio = e.hp / e.maxHp;
+      const barW = e.w;
+      const barH = 6;
+      const x = e.x;
+      const y = e.y - 8;
+
+      // base
+      ctx.fillStyle = "red";
+      roundRect(ctx, x, y, barW, barH, barH / 2);
+      ctx.fill();
+
+      // current HP
+      ctx.fillStyle = "lime";
+      roundRect(ctx, x, y, barW * ratio, barH, barH / 2);
+      ctx.fill();
+    }
+  });
+
+  // score
   ctx.fillStyle = "white";
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + score, 10, 30);
 }
 
-// === Анімаційний цикл ===
-let lastTime = performance.now();
-function gameLoop(now) {
-  const deltaTime = (now - lastTime) / 1000;
-  lastTime = now;
-
-  if (assetsLoaded < 2) {
-    requestAnimationFrame(gameLoop);
-    return;
-  }
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawBackground(deltaTime);
-  updatePlayer(deltaTime);
-  drawPlayer();
-  drawBullets(deltaTime);
-  drawEnemies(deltaTime);
-  handleCollisions();
-  drawScore();
-
-  // Стріляємо автоматично кожні 300 мс
-  if (now % 300 < 16) {
-    bullets.push({ x: player.x, y: player.y - 30 });
-  }
-
-  // Спавн ворогів
-  if (now - lastEnemySpawn > ENEMY_SPAWN_INTERVAL) {
-    spawnEnemy();
-    lastEnemySpawn = now;
-  }
-
-  requestAnimationFrame(gameLoop);
+// === Restart ===
+function restartGame() {
+  score = 0;
+  bullets.length = 0;
+  enemies.length = 0;
+  player.x = canvas.width / 2;
+  player.y = canvas.height * 0.75;
 }
-requestAnimationFrame(gameLoop);
+</script>
