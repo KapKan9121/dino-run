@@ -24,7 +24,6 @@ const explosionSheet = {
   frames: 0                // буде обчислено після onload
 };
 explosionSheet.img.src = "images/effects/explosion_96.png";
-explosionSheet.img.src = "images/effects/explosion_96.png";
 
 // === Ігрові об'єкти ===
 const player = {
@@ -227,8 +226,13 @@ Promise.all([
   new Promise(r => enemyImg.onload = r),
   new Promise(r => {
     explosionSheet.img.onload = () => {
+      // автоматично підлаштовуємося під будь‑який вертикальний спрайт
+      explosionSheet.frameW = explosionSheet.img.width;          // ширина кадру = ширина зображення
+      explosionSheet.frameH = explosionSheet.img.width;          // кадри квадратні, тож висоту беремо = ширині
       explosionSheet.frames = Math.floor(explosionSheet.img.height / explosionSheet.frameH);
       r();
+    };
+  });
     };
   })
 ]).then(() => requestAnimationFrame(gameLoop));
