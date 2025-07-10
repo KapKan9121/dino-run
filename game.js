@@ -13,15 +13,15 @@ backgroundFar.src = "images/fon/layer_far.png";
 const enemyImg = new Image();
 enemyImg.src = "images/enemy/enemy.png";
 
-// --- СПРАЙТ вибуху ---
+// --- Спрайт вибуху ---
 const explosionImg = new Image();
 explosionImg.src = "images/effects/explosion_96.png";
 const explosionConfig = {
   frameWidth: 96,
   frameHeight: 96,
-  frames: 8,
-  frameDuration: 0.05,
-  scale: 1
+  frameCount: 8,
+  animationSpeed: 0.05,
+  scale: 1.5
 };
 
 // === Ігрові об'єкти ===
@@ -43,7 +43,7 @@ let bgFarY = 0;
 
 // === Сенсорне керування ===
 let lastTouch = null;
-let stopThreshold = 0.5;
+const stopThreshold = 0.5;
 
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
@@ -55,8 +55,8 @@ canvas.addEventListener("touchstart", (e) => {
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
   const now = performance.now();
-
   if (!lastTouch) return;
+
   const dx = t.clientX - lastTouch.x;
   const dy = t.clientY - lastTouch.y;
   const dt = now - lastTouch.time;
@@ -81,121 +81,146 @@ canvas.addEventListener("touchend", () => {
 // === Функція створення вибуху ===
 function createExplosion(x, y) {
   explosions.push({
-    x: x - explosionConfig.frameWidth/2,
-    y: y - explosionConfig.frameHeight/2,
+    x: x - (explosionConfig.frameWidth * explosionConfig.scale)/2,
+    y: y - (explosionConfig.frameHeight * explosionConfig.scale)/2,
     currentFrame: 0,
-    frameTimer: 0
+    frameTimer: 0,
+    width: explosionConfig.frameWidth * explosionConfig.scale,
+    height: explosionConfig.frameHeight * explosionConfig.scale
   });
 }
 
-// === Головний цикл з deltaTime ===
+// === Головний цикл ===
 let lastTime = performance.now();
-
 function gameLoop(now) {
-  const deltaTime = (now - lastTime) / 1000;
+  const dt = (now - lastTime) / 1000;
   lastTime = now;
 
-  update(deltaTime);
+  update(dt);
   draw();
   requestAnimationFrame(gameLoop);
 }
 
 function update(dt) {
+  // Рух гравця
   player.x += player.speedX;
   player.y += player.speedY;
-  player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
-  player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
+  player.x = Math.max(player.width/2, Math.min(canvas.width - player.width/2, player.x));
+  player.y = Math.max(player.height/2, Math.min(canvas.height - player.height/2, player.y));
 
+  // Рух фону
   bgFarY += 100 * dt;
   if (bgFarY > canvas.height) bgFarY = 0;
 
-  bullets.forEach((b, i) => {
-    b.y -= 400 * dt;
-    if (b.y < -10) bullets.splice(i, 1);
-  });
+  // Рух куль
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].y -= 400 * dt;
+    if (bullets[i].y < -10) bullets.splice(i, 1);
+  }
 
-  enemies.forEach((e, i) => {
-    e.y += e.speed * dt;
-    if (e.y > canvas.height + e.height) enemies.splice(i, 1);
+  // Рух ворогів
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const enemy = enemies[i];
+    enemy.y += enemy.speed * dt;
+
+    // Видалення ворогів за екраном
+    if (enemy.y > canvas.height + enemy.height) {
+      enemies.splice(i, 1);
+      continue;
+    }
 
     // Колізія з гравцем
-    const paddingX = 10;
-    const paddingY = 6;
+    const padX = 10, padY = 6;
     if (
-      e.x + paddingX < player.x + player.width / 2 &&
-      e.x + e.width - paddingX > player.x - player.width / 2 &&
-      e.y + paddingY < player.y + player.height / 2 &&
-      e.y + e.height - paddingY > player.y - player.height / 2
+      enemy.x + padX < player.x + player.width/2 &&
+      enemy.x + enemy.width - padX > player.x - player.width/2 &&
+      enemy.y + padY < player.y + player.height/2 &&
+      enemy.y + enemy.height - padY > player.y - player.height/2
     ) {
       restartGame();
+      return;
     }
 
-    // Перевірка попадання куль
-    bullets.forEach((b, j) => {
+    // Колізія з кулями
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const bullet = bullets[j];
       if (
-        b.x < e.x + e.width &&
-        b.x + b.width > e.x &&
-        b.y < e.y + e.height &&
-        b.y + b.height > e.y
+        bullet.x < enemy.x + enemy.width &&
+        bullet.x + bullet.width > enemy.x &&
+        bullet.y < enemy.y + enemy.height &&
+        bullet.y + bullet.height > enemy.y
       ) {
-        e.hp--;
+        enemy.hp--;
         bullets.splice(j, 1);
-        if (e.hp <= 0) {
-          createExplosion(e.x + e.width/2, e.y + e.height/2);
+        
+        if (enemy.hp <= 0) {
+          createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
           enemies.splice(i, 1);
-          score++;
+          score += 10;
+          break;
         }
       }
-    });
-  });
+    }
+  }
 
   // Оновлення анімації вибухів
-  explosions.forEach((explosion, index) => {
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const explosion = explosions[i];
     explosion.frameTimer += dt;
-    if (explosion.frameTimer >= explosionConfig.frameDuration) {
+    
+    if (explosion.frameTimer >= explosionConfig.animationSpeed) {
       explosion.frameTimer = 0;
       explosion.currentFrame++;
-      if (explosion.currentFrame >= explosionConfig.frames) {
-        explosions.splice(index, 1);
+      
+      if (explosion.currentFrame >= explosionConfig.frameCount) {
+        explosions.splice(i, 1);
       }
     }
-  });
+  }
 }
 
 function draw() {
+  // Очищення екрану
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Малювання фону
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
-  ctx.drawImage(playerImg, player.x - player.width / 2, player.y - player.height / 2, player.width, player.height);
 
+  // Малювання гравця
+  ctx.drawImage(
+    playerImg, 
+    player.x - player.width/2, 
+    player.y - player.height/2, 
+    player.width, 
+    player.height
+  );
+
+  // Малювання куль
+  ctx.fillStyle = "white";
   bullets.forEach(b => {
-    ctx.fillStyle = "white";
     ctx.fillRect(b.x, b.y, b.width, b.height);
   });
 
+  // Малювання ворогів
   enemies.forEach(e => {
     ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
 
-    // Малювання шкали HP
+    // Шкала HP
     if (e.hp < e.maxHp) {
       const segmentCount = e.maxHp;
       const spacing = 2;
-      const barWidth = e.width;
       const barHeight = 3;
-      const segmentWidth = (barWidth - (segmentCount - 1) * spacing) / segmentCount;
-
+      const segmentWidth = (e.width - (segmentCount - 1) * spacing) / segmentCount;
+      
       for (let i = 0; i < segmentCount; i++) {
-        const filled = i < e.hp;
-        ctx.fillStyle = filled ? "red" : "rgba(100, 100, 100, 0.4)";
-        ctx.beginPath();
-        ctx.roundRect(
+        ctx.fillStyle = i < e.hp ? "red" : "rgba(80,80,80,0.5)";
+        ctx.fillRect(
           e.x + i * (segmentWidth + spacing),
           e.y - 8,
           segmentWidth,
-          barHeight,
-          [2]
+          barHeight
         );
-        ctx.fill();
       }
     }
   });
@@ -210,33 +235,34 @@ function draw() {
       explosionConfig.frameHeight,
       explosion.x,
       explosion.y,
-      explosionConfig.frameWidth * explosionConfig.scale,
-      explosionConfig.frameHeight * explosionConfig.scale
+      explosion.width,
+      explosion.height
     );
   });
 
-  // Рахунок
+  // Малювання рахунку
   ctx.fillStyle = "white";
-  ctx.font = "20px Arial";
-  ctx.fillText("Score: " + score, 10, 30);
+  ctx.font = "24px Arial";
+  ctx.fillText(`Score: ${score}`, 20, 40);
 }
 
-// === Спавн куль та ворогів ===
+// === Спавн куль ===
 setInterval(() => {
   bullets.push({
     x: player.x - 2,
-    y: player.y - player.height / 2,
+    y: player.y - player.height/2,
     width: 4,
     height: 10
   });
 }, 250);
 
+// === Спавн ворогів ===
 setInterval(() => {
-  const eWidth = 50;
+  const width = 50;
   enemies.push({
-    x: Math.random() * (canvas.width - eWidth),
+    x: Math.random() * (canvas.width - width),
     y: -60,
-    width: eWidth,
+    width: width,
     height: 50,
     speed: 120 + Math.random() * 80,
     hp: 3,
@@ -254,10 +280,12 @@ function restartGame() {
   explosions.length = 0;
 }
 
-// === Дочекаємося повного завантаження ===
+// === Запуск гри після завантаження ресурсів ===
 Promise.all([
-  new Promise(res => playerImg.onload = res),
-  new Promise(res => backgroundFar.onload = res),
-  new Promise(res => enemyImg.onload = res),
-  new Promise(res => explosionImg.onload = res)
-]).then(() => requestAnimationFrame(gameLoop));
+  new Promise(resolve => { playerImg.onload = resolve; }),
+  new Promise(resolve => { backgroundFar.onload = resolve; }),
+  new Promise(resolve => { enemyImg.onload = resolve; }),
+  new Promise(resolve => { explosionImg.onload = resolve; })
+]).then(() => {
+  requestAnimationFrame(gameLoop);
+});
