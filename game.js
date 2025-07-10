@@ -1,177 +1,202 @@
+/* ===== game.js – оновлений, оптимізований  ================================= */
+
+// ── Canvas ─────────────────────────────────────────────────────────────────────
 const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const ctx    = canvas.getContext("2d");
 canvas.width = innerWidth;
 canvas.height = innerHeight;
 
-const playerImg = new Image();
-playerImg.src = "images/player/player.png";
+// ── Polyfill для roundRect (якщо браузер не підтримує) ─────────────────────────
+if (!ctx.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    this.beginPath();
+    this.moveTo(x + r, y);
+    this.lineTo(x + w - r, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + r);
+    this.lineTo(x + w, y + h - r);
+    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    this.lineTo(x + r, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - r);
+    this.lineTo(x, y + r);
+    this.quadraticCurveTo(x, y, x + r, y);
+    this.closePath();
+  };
+}
 
+// ── Зображення ────────────────────────────────────────────────────────────────
+const playerImg     = new Image();
 const backgroundFar = new Image();
+const enemyImg      = new Image();
+
+playerImg.src     = "images/player/player.png";
 backgroundFar.src = "images/fon/layer_far.png";
+enemyImg.src      = "images/enemy/enemy.png";
 
-const enemyImg = new Image();
-enemyImg.src = "images/enemy/enemy.png";
-
+// ── Гравець ───────────────────────────────────────────────────────────────────
 const player = {
   x: canvas.width / 2,
   y: canvas.height * 0.75,
-  width: 60,
-  height: 60,
-  speedX: 0,
-  speedY: 0
+  w: 60, h: 60,
+  vx: 0, vy: 0
 };
 
+// ── Масиви ────────────────────────────────────────────────────────────────────
 const bullets = [];
 const enemies = [];
-let score = 0;
-let bgFarY = 0;
 
-// ==== Сенсорне керування ====
+// ── Ігрові змінні ─────────────────────────────────────────────────────────────
+let score  = 0;
+let bgY    = 0;
+let lastT  = performance.now();
+
+// ── Сенсорне керування ────────────────────────────────────────────────────────
 let lastTouch = null;
-const stopThreshold = 0.5;
+const STOP = 0.5;
 
-canvas.addEventListener("touchstart", (e) => {
+canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
-  lastTouch = { x: t.clientX, y: t.clientY, time: performance.now() };
-  player.speedX = 0;
-  player.speedY = 0;
+  lastTouch = { x: t.clientX, y: t.clientY, t: performance.now() };
+  player.vx = player.vy = 0;
 });
 
-canvas.addEventListener("touchmove", (e) => {
+canvas.addEventListener("touchmove", e => {
   const t = e.touches[0];
-  const now = performance.now();
-
   if (!lastTouch) return;
-  const dx = t.clientX - lastTouch.x;
-  const dy = t.clientY - lastTouch.y;
-  const dt = now - lastTouch.time;
-  if (dt < 1) return;
+  const now = performance.now();
+  const dx  = t.clientX - lastTouch.x;
+  const dy  = t.clientY - lastTouch.y;
+  const dt  = now - lastTouch.t || 16;
 
-  const pxPerFrameX = dx / (dt / 16.66);
-  const pxPerFrameY = dy / (dt / 16.66);
-  const speed = Math.sqrt(pxPerFrameX ** 2 + pxPerFrameY ** 2);
+  const vx = dx / (dt / 16.66);
+  const vy = dy / (dt / 16.66);
+  const sp = Math.hypot(vx, vy);
 
-  player.speedX = speed < stopThreshold ? 0 : pxPerFrameX;
-  player.speedY = speed < stopThreshold ? 0 : pxPerFrameY;
-
-  lastTouch = { x: t.clientX, y: t.clientY, time: now };
+  player.vx = sp < STOP ? 0 : vx;
+  player.vy = sp < STOP ? 0 : vy;
+  lastTouch = { x: t.clientX, y: t.clientY, t: now };
 });
 
-canvas.addEventListener("touchend", () => {
-  lastTouch = null;
-  player.speedX = 0;
-  player.speedY = 0;
-});
+canvas.addEventListener("touchend",
+  () => { lastTouch = null; player.vx = player.vy = 0; });
 
-// ==== Основний цикл ====
-let lastTime = performance.now();
+// ── Логіка оновлення ─────────────────────────────────────────────────────────
+function update(dt) {
+  // Рух гравця
+  player.x += player.vx;
+  player.y += player.vy;
+  player.x = Math.max(player.w/2, Math.min(canvas.width  - player.w/2, player.x));
+  player.y = Math.max(player.h/2, Math.min(canvas.height - player.h/2, player.y));
 
-function gameLoop(now) {
-  const dt = (now - lastTime) / 1000;
-  lastTime = now;
+  // Фон
+  bgY += 100 * dt;
+  if (bgY > canvas.height) bgY -= canvas.height;
+
+  // Кулі
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.y -= 400 * dt;
+    if (b.y < -b.h) bullets.splice(i, 1);
+  }
+
+  // Вороги
+  const PAD = 8;                           // padding для хітбокса
+  for (let ei = enemies.length - 1; ei >= 0; ei--) {
+    const e = enemies[ei];
+    e.y += e.speed * dt;
+
+    // Видалення якщо нижче екрана
+    if (e.y > canvas.height + e.h) { enemies.splice(ei, 1); continue; }
+
+    // Зіткнення з гравцем (менший хітбокс)
+    if (
+      e.x + PAD < player.x + player.w/2  &&
+      e.x + e.w - PAD > player.x - player.w/2 &&
+      e.y + PAD < player.y + player.h/2  &&
+      e.y + e.h - PAD > player.y - player.h/2
+    ) restartGame();
+
+    // Перевірка влучань
+    for (let bi = bullets.length - 1; bi >= 0; bi--) {
+      const b = bullets[bi];
+      if (
+        b.x < e.x + e.w && b.x + b.w > e.x &&
+        b.y < e.y + e.h && b.y + b.h > e.y
+      ) {
+        bullets.splice(bi, 1);
+        e.hp -= 50;
+        e.showHP = true;
+        if (e.hp <= 0) { enemies.splice(ei, 1); score++; }
+        break;
+      }
+    }
+  }
+}
+
+// ── Малювання ────────────────────────────────────────────────────────────────
+function draw() {
+  // Фон
+  ctx.drawImage(backgroundFar, 0, bgY, canvas.width, canvas.height);
+  ctx.drawImage(backgroundFar, 0, bgY - canvas.height, canvas.width, canvas.height);
+
+  // Гравець
+  ctx.drawImage(playerImg, player.x - player.w/2, player.y - player.h/2, player.w, player.h);
+
+  // Кулі
+  ctx.fillStyle = "white";
+  bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+  // Вороги + HP
+  enemies.forEach(e => {
+    ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
+    drawHP(e);
+  });
+
+  // Рахунок
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText(`Score: ${score}`, 10, 30);
+}
+
+// ── Шкала HP ────────────────────────────────────────────────────────────────
+function drawHP(e) {
+  if (!e.showHP || e.hp >= e.maxHp) return;
+  const x = e.x, y = e.y - 10;
+  const w = e.w, h = 6;
+  const ratio = e.hp / e.maxHp;
+
+  ctx.fillStyle = "#350000";
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = "red";
+  ctx.roundRect(x, y, w * ratio, h, 3);
+  ctx.fill();
+}
+
+// ── Цикл гри ────────────────────────────────────────────────────────────────
+function gameLoop(t = performance.now()) {
+  const dt = (t - lastT) / 1000;
+  lastT = t;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   update(dt);
   draw();
   requestAnimationFrame(gameLoop);
 }
 
-function update(dt) {
-  player.x += player.speedX;
-  player.y += player.speedY;
-  player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
-  player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
+// ── Масове створення ────────────────────────────────────────────────────────
+setInterval(() => bullets.push({ x: player.x - 2, y: player.y - player.h/2, w:4, h:10 }), 250);
 
-  bgFarY += 100 * dt;
-  if (bgFarY > canvas.height) bgFarY = 0;
-
-  bullets.forEach((b, i) => {
-    b.y -= 400 * dt;
-    if (b.y < -10) bullets.splice(i, 1);
+setInterval(() => {
+  const w = 50;
+  enemies.push({
+    x: Math.random() * (canvas.width - w),
+    y: -60, w, h: 50,
+    speed: 120 + Math.random() * 80,
+    hp: 100, maxHp: 100,
+    showHP: false
   });
+}, 1000);
 
-  enemies.forEach((e, i) => {
-    e.y += e.speed * dt;
-
-    if (e.y > canvas.height + e.height) enemies.splice(i, 1);
-
-    // Зіткнення з гравцем
-    if (
-      e.x < player.x + player.width / 2 &&
-      e.x + e.width > player.x - player.width / 2 &&
-      e.y < player.y + player.height / 2 &&
-      e.y + e.height > player.y - player.height / 2
-    ) {
-      restartGame();
-    }
-
-    // Перевірка влучань
-    bullets.forEach((b, j) => {
-      if (
-        b.x < e.x + e.width &&
-        b.x + b.width > e.x &&
-        b.y < e.y + e.height &&
-        b.y + b.height > e.y
-      ) {
-        e.health -= 50;
-        e.showHealth = true;
-        bullets.splice(j, 1);
-        if (e.health <= 0) {
-          enemies.splice(i, 1);
-          score++;
-        }
-      }
-    });
-  });
-}
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
-  ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
-
-  ctx.drawImage(
-    playerImg,
-    player.x - player.width / 2,
-    player.y - player.height / 2,
-    player.width,
-    player.height
-  );
-
-  bullets.forEach(b => {
-    ctx.fillStyle = "white";
-    ctx.fillRect(b.x, b.y, b.width, b.height);
-  });
-
-  enemies.forEach(e => {
-    ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
-    drawHealthBar(e);
-  });
-
-  ctx.fillStyle = "white";
-  ctx.font = "20px Arial";
-  ctx.fillText("Score: " + score, 10, 30);
-}
-
-function drawHealthBar(enemy) {
-  if (!enemy.showHealth || enemy.health >= enemy.maxHealth) return;
-
-  const barWidth = enemy.width;
-  const barHeight = 4;
-  const x = enemy.x;
-  const y = enemy.y - 8;
-
-  const ratio = enemy.health / enemy.maxHealth;
-
-  ctx.fillStyle = "#222";
-  ctx.fillRect(x, y, barWidth, barHeight);
-
-  ctx.fillStyle = "lime";
-  ctx.fillRect(x, y, barWidth * ratio, barHeight);
-
-  ctx.strokeStyle = "#000";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, barWidth, barHeight);
-}
-
+// ── Перезапуск ──────────────────────────────────────────────────────────────
 function restartGame() {
   score = 0;
   player.x = canvas.width / 2;
@@ -180,34 +205,9 @@ function restartGame() {
   enemies.length = 0;
 }
 
-// ==== Авто-стрільба ====
-setInterval(() => {
-  bullets.push({
-    x: player.x - 2,
-    y: player.y - player.height / 2,
-    width: 4,
-    height: 10
-  });
-}, 250);
-
-// ==== Спавн ворогів ====
-setInterval(() => {
-  const eWidth = 50;
-  enemies.push({
-    x: Math.random() * (canvas.width - eWidth),
-    y: -60,
-    width: eWidth,
-    height: 50,
-    speed: 120 + Math.random() * 80,
-    health: 100,
-    maxHealth: 100,
-    showHealth: false
-  });
-}, 1000);
-
-// ==== Запуск після завантаження ====
+// ── Старт після завантаження зображень ──────────────────────────────────────
 Promise.all([
-  new Promise(res => playerImg.onload = res),
-  new Promise(res => backgroundFar.onload = res),
-  new Promise(res => enemyImg.onload = res)
+  new Promise(res => playerImg.onload      = res),
+  new Promise(res => backgroundFar.onload  = res),
+  new Promise(res => enemyImg.onload       = res)
 ]).then(() => requestAnimationFrame(gameLoop));
