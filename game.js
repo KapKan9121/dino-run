@@ -15,12 +15,15 @@ const enemyImg = new Image();
 enemyImg.src = "images/enemy/enemy.png";
 
 // --- СПРАЙТ вибуху ---
+// --- СПРАЙТ вибуху ---
 const explosionSheet = {
   img: new Image(),
-  frameW: 28,              // ширина кадру в спрайті (підстав власну за потребою)
+  frameW: 28,              // ширина кадру в спрайті
   frameH: 28,              // висота кадру
+  scale: 2,                // збільшення (2 ⇒ 56×56)
   frames: 0                // буде обчислено після onload
 };
+explosionSheet.img.src = "images/effects/explosion_96.png";
 explosionSheet.img.src = "images/effects/explosion_96.png";
 
 // === Ігрові об'єкти ===
@@ -79,12 +82,17 @@ canvas.addEventListener("touchend", () => {
 
 // === Допоміжна функція для спавну вибуху ===
 function spawnExplosion(cx, cy) {
+  const w = explosionSheet.frameW * explosionSheet.scale;
+  const h = explosionSheet.frameH * explosionSheet.scale;
   explosions.push({
-    x: cx - explosionSheet.frameW / 2,
-    y: cy - explosionSheet.frameH / 2,
+    x: cx - w / 2,
+    y: cy - h / 2,
     frame: 0,
-    frameTimer: 0
+    frameTimer: 0,
+    destW: w,
+    destH: h
   });
+}
 }
 
 // === Головний цикл ===
@@ -140,14 +148,15 @@ function update(dt) {
   });
 
   // === Анімація вибухів ===
-  const frameDuration = 0.04; // сек/кадр
-  explosions.forEach((ex, idx) => {
+  const frameDuration = 0.03; // швидше (≈33 FPS)
+  for (let k = explosions.length - 1; k >= 0; k--) {
+    const ex = explosions[k];
     ex.frameTimer += dt;
     if (ex.frameTimer >= frameDuration) {
       ex.frame++; ex.frameTimer = 0;
-      if (ex.frame >= explosionSheet.frames) explosions.splice(idx, 1);
+      if (ex.frame >= explosionSheet.frames) explosions.splice(k, 1);
     }
-  });
+  }
 }
 
 function draw() {
@@ -190,15 +199,12 @@ function draw() {
       explosionSheet.frameH,
       ex.x,
       ex.y,
-      explosionSheet.frameW,
-      explosionSheet.frameH
+      ex.destW,
+      ex.destH
     );
   });
 
-  // Рахунок
-  ctx.fillStyle = "white";
-  ctx.font = "20px Arial";
-  ctx.fillText(`Score: ${score}`, 10, 30);
+  // Рахунок(`Score: ${score}`, 10, 30);
 }
 
 // === Спавн куль та ворогів ===
