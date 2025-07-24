@@ -6,7 +6,7 @@ canvas.height = innerHeight;
 
 // === Завантаження зображень ===
 const playerSprite = new Image();
-playerSprite.src = "images/player/player.png"; // Спрайт з кількома кадрами
+playerSprite.src = "images/player/Gaalian_Liner_128.png"; // Спрайт з кількома кадрами
 
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png";
