@@ -9,7 +9,7 @@ const playerSprite = new Image();
 playerSprite.src = "images/player/Gaalian_Liner_128.png";
 
 const explosionSprite = new Image();
-explosionSprite.src = "images/player/Gaalian_Liner_128.png";
+explosionSprite.src = "images/effects/explosion_96.png";
 
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png";
