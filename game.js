@@ -17,21 +17,29 @@ backgroundFar.src = "images/fon/layer_far.png";
 const enemyImg = new Image();
 enemyImg.src = "images/enemy/enemy.png";
 
-// === Параметри анімації ===
-const FRAME_W = 128;
-const FRAME_H = 128;
-const TOTAL_FRAMES = 64;
-const frameInterval = 100;
+// === Анімаційні параметри окремо для кожного спрайта ===
+const playerAnimation = {
+  frameW: 128,               // 🔧 Ширина кадру гравця
+  frameH: 128,               // 🔧 Висота кадру гравця
+  totalFrames: 64,          // 🔧 Загальна кількість кадрів
+  interval: 100,            // 🕐 Інтервал анімації (мс)
+  index: 0,
+  timer: 0
+};
 
-let frameIndex = 0;
-let frameTimer = 0;
+const explosionAnimation = {
+  frameW: 128,               // 🔧 Ширина кадру вибуху
+  frameH: 128,               // 🔧 Висота кадру вибуху
+  totalFrames: 64,          // 🔧 Загальна кількість кадрів у вибуху
+  interval: 50              // 🕐 Швидкість кадрів вибуху (менше = швидше)
+};
 
 // === Ігрові об'єкти ===
 const player = {
   x: canvas.width / 2,
   y: canvas.height * 0.75,
-  w: FRAME_W,
-  h: FRAME_H,
+  w: playerAnimation.frameW,
+  h: playerAnimation.frameH,
   speedX: 0,
   speedY: 0,
   frame: 0
@@ -98,11 +106,12 @@ function update(dt) {
   player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
   player.y = Math.max(player.h / 2, Math.min(canvas.height - player.h / 2, player.y));
 
-  frameTimer += dt;
-  if (frameTimer >= frameInterval) {
-    frameTimer = 0;
-    frameIndex = (frameIndex + 1) % TOTAL_FRAMES;
-    player.frame = frameIndex;
+  // Анімація гравця
+  playerAnimation.timer += dt;
+  if (playerAnimation.timer >= playerAnimation.interval) {
+    playerAnimation.timer = 0;
+    playerAnimation.index = (playerAnimation.index + 1) % playerAnimation.totalFrames;
+    player.frame = playerAnimation.index;
   }
 
   bgFarY += 100 * dt / 1000;
@@ -149,10 +158,10 @@ function update(dt) {
   // Анімація вибухів
   explosions.forEach((expl, i) => {
     expl.timer += dt;
-    if (expl.timer >= frameInterval) {
+    if (expl.timer >= explosionAnimation.interval) {
       expl.timer = 0;
       expl.frame++;
-      if (expl.frame >= TOTAL_FRAMES) {
+      if (expl.frame >= explosionAnimation.totalFrames) {
         explosions.splice(i, 1);
       }
     }
@@ -164,45 +173,43 @@ function draw() {
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
 
-  // Гравець
-  ctx.drawImage(
-    playerSprite,
-    0, player.frame * FRAME_H,
-    FRAME_W, FRAME_H,
-    player.x - player.w / 2,
-    player.y - player.h / 2,
-    FRAME_W, FRAME_H
-  );
+  if (playerSprite.complete && playerSprite.naturalHeight !== 0) {
+    ctx.drawImage(
+      playerSprite,
+      0, player.frame * playerAnimation.frameH,
+      playerAnimation.frameW, playerAnimation.frameH,
+      player.x - player.w / 2, player.y - player.h / 2,
+      playerAnimation.frameW, playerAnimation.frameH
+    );
+  } else {
+    ctx.fillStyle = "lime";
+    ctx.fillRect(player.x - 20, player.y - 20, 40, 40);
+  }
 
-  // Вибухи
   explosions.forEach((expl) => {
     ctx.drawImage(
       explosionSprite,
-      0, expl.frame * FRAME_H,
-      FRAME_W, FRAME_H,
+      0, expl.frame * explosionAnimation.frameH,
+      explosionAnimation.frameW, explosionAnimation.frameH,
       expl.x, expl.y,
-      FRAME_W, FRAME_H
+      explosionAnimation.frameW, explosionAnimation.frameH
     );
   });
 
-  // Кулі
   bullets.forEach(b => {
     ctx.fillStyle = "white";
     ctx.fillRect(b.x, b.y, b.w, b.h);
   });
 
-  // Вороги
   enemies.forEach(e => {
     ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
   });
 
-  // Рахунок
   ctx.fillStyle = "white";
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + score, 10, 30);
 }
 
-// === Постріли ===
 setInterval(() => {
   bullets.push({
     x: player.x,
@@ -212,7 +219,6 @@ setInterval(() => {
   });
 }, 250);
 
-// === Спавн ворогів ===
 setInterval(() => {
   const eW = 50;
   enemies.push({
@@ -224,7 +230,6 @@ setInterval(() => {
   });
 }, 1000);
 
-// === Перезапуск гри ===
 function restartGame() {
   score = 0;
   player.x = canvas.width / 2;
