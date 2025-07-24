@@ -8,6 +8,9 @@ canvas.height = innerHeight;
 const playerSprite = new Image();
 playerSprite.src = "images/player/Gaalian_Liner_128.png";
 
+const explosionSprite = new Image();
+explosionSprite.src = "images/player/Gaalian_Liner_128.png";
+
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png";
 
@@ -18,9 +21,10 @@ enemyImg.src = "images/enemy/enemy.png";
 const FRAME_W = 128;
 const FRAME_H = 128;
 const TOTAL_FRAMES = 64;
+const frameInterval = 100;
+
 let frameIndex = 0;
 let frameTimer = 0;
-const frameInterval = 100;
 
 // === Ігрові об'єкти ===
 const player = {
@@ -30,13 +34,12 @@ const player = {
   h: FRAME_H,
   speedX: 0,
   speedY: 0,
-  frame: 0,
-  exploding: false,
-  exploded: false
+  frame: 0
 };
 
 const bullets = [];
 const enemies = [];
+const explosions = [];
 
 let score = 0;
 let bgFarY = 0;
@@ -90,19 +93,6 @@ function gameLoop(now) {
 }
 
 function update(dt) {
-  if (player.exploding || player.exploded) {
-    frameTimer += dt;
-    if (frameTimer >= frameInterval) {
-      frameTimer = 0;
-      frameIndex++;
-      if (frameIndex >= TOTAL_FRAMES) {
-        player.exploded = true;
-        setTimeout(restartGame, 1000);
-      }
-    }
-    return;
-  }
-
   player.x += player.speedX;
   player.y += player.speedY;
   player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
@@ -131,12 +121,9 @@ function update(dt) {
       e.x < player.x + player.w / 2 &&
       e.x + e.w > player.x - player.w / 2 &&
       e.y < player.y + player.h / 2 &&
-      e.y + e.h > player.y - player.h / 2 &&
-      !player.exploding && !player.exploded
+      e.y + e.h > player.y - player.h / 2
     ) {
-      player.exploding = true;
-      frameIndex = 0;
-      frameTimer = 0;
+      restartGame();
     }
 
     bullets.forEach((b, j) => {
@@ -146,11 +133,29 @@ function update(dt) {
         b.y < e.y + e.h &&
         b.y + b.h > e.y
       ) {
+        explosions.push({
+          x: e.x,
+          y: e.y,
+          frame: 0,
+          timer: 0
+        });
         enemies.splice(i, 1);
         bullets.splice(j, 1);
         score++;
       }
     });
+  });
+
+  // Анімація вибухів
+  explosions.forEach((expl, i) => {
+    expl.timer += dt;
+    if (expl.timer >= frameInterval) {
+      expl.timer = 0;
+      expl.frame++;
+      if (expl.frame >= TOTAL_FRAMES) {
+        explosions.splice(i, 1);
+      }
+    }
   });
 }
 
@@ -159,42 +164,55 @@ function draw() {
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
 
-  if (!player.exploded) {
+  // Гравець
+  ctx.drawImage(
+    playerSprite,
+    0, player.frame * FRAME_H,
+    FRAME_W, FRAME_H,
+    player.x - player.w / 2,
+    player.y - player.h / 2,
+    FRAME_W, FRAME_H
+  );
+
+  // Вибухи
+  explosions.forEach((expl) => {
     ctx.drawImage(
-      playerSprite,
-      0, player.exploding ? frameIndex * FRAME_H : player.frame * FRAME_H,
+      explosionSprite,
+      0, expl.frame * FRAME_H,
       FRAME_W, FRAME_H,
-      player.x - player.w / 2,
-      player.y - player.h / 2,
+      expl.x, expl.y,
       FRAME_W, FRAME_H
     );
-  }
+  });
 
+  // Кулі
   bullets.forEach(b => {
     ctx.fillStyle = "white";
     ctx.fillRect(b.x, b.y, b.w, b.h);
   });
 
+  // Вороги
   enemies.forEach(e => {
     ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
   });
 
+  // Рахунок
   ctx.fillStyle = "white";
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + score, 10, 30);
 }
 
+// === Постріли ===
 setInterval(() => {
-  if (!player.exploding && !player.exploded) {
-    bullets.push({
-      x: player.x,
-      y: player.y - player.h / 2,
-      w: 4,
-      h: 10
-    });
-  }
+  bullets.push({
+    x: player.x,
+    y: player.y - player.h / 2,
+    w: 4,
+    h: 10
+  });
 }, 250);
 
+// === Спавн ворогів ===
 setInterval(() => {
   const eW = 50;
   enemies.push({
@@ -206,19 +224,19 @@ setInterval(() => {
   });
 }, 1000);
 
+// === Перезапуск гри ===
 function restartGame() {
   score = 0;
   player.x = canvas.width / 2;
   player.y = canvas.height * 0.75;
-  player.exploded = false;
-  player.exploding = false;
-  frameIndex = 0;
   bullets.length = 0;
   enemies.length = 0;
+  explosions.length = 0;
 }
 
 Promise.all([
   new Promise(res => playerSprite.onload = res),
+  new Promise(res => explosionSprite.onload = res),
   new Promise(res => backgroundFar.onload = res),
   new Promise(res => enemyImg.onload = res)
 ]).then(() => requestAnimationFrame(gameLoop));
