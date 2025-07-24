@@ -6,7 +6,7 @@ canvas.height = innerHeight;
 
 // === Завантаження зображень ===
 const playerSprite = new Image();
-playerSprite.src = "images/player/Gaalian_Liner_128.png"; // Спрайт з кількома кадрами
+playerSprite.src = "images/player/Gaalian_Liner_128.png";
 
 const backgroundFar = new Image();
 backgroundFar.src = "images/fon/layer_far.png";
@@ -14,24 +14,30 @@ backgroundFar.src = "images/fon/layer_far.png";
 const enemyImg = new Image();
 enemyImg.src = "images/enemy/enemy.png";
 
-// === Гравець ===
+// === Параметри анімації ===
+const FRAME_W = 128;
+const FRAME_H = 128;
+const TOTAL_FRAMES = 64;
+let frameIndex = 0;
+let frameTimer = 0;
+const frameInterval = 100;
+
+// === Ігрові об'єкти ===
 const player = {
   x: canvas.width / 2,
   y: canvas.height * 0.75,
-  width: 64,
-  height: 64,
+  w: FRAME_W,
+  h: FRAME_H,
   speedX: 0,
   speedY: 0,
   frame: 0,
-  frameCount: 4,
-  frameDelay: 100,
-  frameTimer: 0,
   exploding: false,
   exploded: false
 };
 
 const bullets = [];
 const enemies = [];
+
 let score = 0;
 let bgFarY = 0;
 
@@ -49,8 +55,8 @@ canvas.addEventListener("touchstart", (e) => {
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
   const now = performance.now();
-
   if (!lastTouch) return;
+
   const dx = t.clientX - lastTouch.x;
   const dy = t.clientY - lastTouch.y;
   const dt = now - lastTouch.time;
@@ -74,7 +80,6 @@ canvas.addEventListener("touchend", () => {
 
 // === Головний цикл ===
 let lastTime = performance.now();
-
 function gameLoop(now) {
   const deltaTime = now - lastTime;
   lastTime = now;
@@ -85,13 +90,12 @@ function gameLoop(now) {
 }
 
 function update(dt) {
-  if (player.exploding) {
-    player.frameTimer += dt;
-    if (player.frameTimer > player.frameDelay) {
-      player.frame++;
-      player.frameTimer = 0;
-      if (player.frame >= player.frameCount) {
-        player.exploding = false;
+  if (player.exploding || player.exploded) {
+    frameTimer += dt;
+    if (frameTimer >= frameInterval) {
+      frameTimer = 0;
+      frameIndex++;
+      if (frameIndex >= TOTAL_FRAMES) {
         player.exploded = true;
         setTimeout(restartGame, 1000);
       }
@@ -99,42 +103,48 @@ function update(dt) {
     return;
   }
 
-  if (player.exploded) return;
-
   player.x += player.speedX;
   player.y += player.speedY;
-  player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
-  player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
+  player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
+  player.y = Math.max(player.h / 2, Math.min(canvas.height - player.h / 2, player.y));
 
-  bgFarY += 100 * (dt / 1000);
+  frameTimer += dt;
+  if (frameTimer >= frameInterval) {
+    frameTimer = 0;
+    frameIndex = (frameIndex + 1) % TOTAL_FRAMES;
+    player.frame = frameIndex;
+  }
+
+  bgFarY += 100 * dt / 1000;
   if (bgFarY > canvas.height) bgFarY = 0;
 
   bullets.forEach((b, i) => {
-    b.y -= 400 * (dt / 1000);
+    b.y -= 400 * dt / 1000;
     if (b.y < -10) bullets.splice(i, 1);
   });
 
   enemies.forEach((e, i) => {
-    e.y += e.speed * (dt / 1000);
-    if (e.y > canvas.height + e.height) enemies.splice(i, 1);
+    e.y += e.speed * dt / 1000;
+    if (e.y > canvas.height + e.h) enemies.splice(i, 1);
 
     if (
-      !player.exploding &&
-      e.x < player.x + player.width / 2 &&
-      e.x + e.width > player.x - player.width / 2 &&
-      e.y < player.y + player.height / 2 &&
-      e.y + e.height > player.y - player.height / 2
+      e.x < player.x + player.w / 2 &&
+      e.x + e.w > player.x - player.w / 2 &&
+      e.y < player.y + player.h / 2 &&
+      e.y + e.h > player.y - player.h / 2 &&
+      !player.exploding && !player.exploded
     ) {
       player.exploding = true;
-      player.frame = 0;
+      frameIndex = 0;
+      frameTimer = 0;
     }
 
     bullets.forEach((b, j) => {
       if (
-        b.x < e.x + e.width &&
-        b.x + b.width > e.x &&
-        b.y < e.y + e.height &&
-        b.y + b.height > e.y
+        b.x < e.x + e.w &&
+        b.x + b.w > e.x &&
+        b.y < e.y + e.h &&
+        b.y + b.h > e.y
       ) {
         enemies.splice(i, 1);
         bullets.splice(j, 1);
@@ -149,71 +159,64 @@ function draw() {
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
 
-  bullets.forEach(b => {
-    ctx.fillStyle = "white";
-    ctx.fillRect(b.x, b.y, b.width, b.height);
-  });
-
-  enemies.forEach(e => {
-    ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
-  });
-
-  // малюємо гравця з анімацією
   if (!player.exploded) {
     ctx.drawImage(
       playerSprite,
-      player.frame * player.width,
-      0,
-      player.width,
-      player.height,
-      player.x - player.width / 2,
-      player.y - player.height / 2,
-      player.width,
-      player.height
+      0, player.exploding ? frameIndex * FRAME_H : player.frame * FRAME_H,
+      FRAME_W, FRAME_H,
+      player.x - player.w / 2,
+      player.y - player.h / 2,
+      FRAME_W, FRAME_H
     );
   }
+
+  bullets.forEach(b => {
+    ctx.fillStyle = "white";
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+  });
+
+  enemies.forEach(e => {
+    ctx.drawImage(enemyImg, e.x, e.y, e.w, e.h);
+  });
 
   ctx.fillStyle = "white";
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + score, 10, 30);
 }
 
-// === Спавн ===
 setInterval(() => {
   if (!player.exploding && !player.exploded) {
     bullets.push({
-      x: player.x - 2,
-      y: player.y - player.height / 2,
-      width: 4,
-      height: 10
+      x: player.x,
+      y: player.y - player.h / 2,
+      w: 4,
+      h: 10
     });
   }
 }, 250);
 
 setInterval(() => {
-  const eWidth = 50;
+  const eW = 50;
   enemies.push({
-    x: Math.random() * (canvas.width - eWidth),
+    x: Math.random() * (canvas.width - eW),
     y: -60,
-    width: eWidth,
-    height: 50,
+    w: eW,
+    h: 50,
     speed: 120 + Math.random() * 80
   });
 }, 1000);
 
-// === Перезапуск гри ===
 function restartGame() {
   score = 0;
   player.x = canvas.width / 2;
   player.y = canvas.height * 0.75;
   player.exploded = false;
   player.exploding = false;
-  player.frame = 0;
+  frameIndex = 0;
   bullets.length = 0;
   enemies.length = 0;
 }
 
-// === Запуск ===
 Promise.all([
   new Promise(res => playerSprite.onload = res),
   new Promise(res => backgroundFar.onload = res),
