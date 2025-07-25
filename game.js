@@ -6,7 +6,7 @@ canvas.height = innerHeight;
 
 // === Завантаження зображень ===
 const playerSprite = new Image();
-playerSprite.src = "images/player/Gaalian_Liner_128.png";
+playerSprite.src = "images/player/Maloc_Ranger_64.png";
 
 const explosionSprite = new Image();
 explosionSprite.src = "images/effects/explosion_96.png";
@@ -28,8 +28,8 @@ const playerAnimation = {
 };
 
 const explosionAnimation = {
-  frameW: 128,               // 🔧 Ширина кадру вибуху
-  frameH: 128,               // 🔧 Висота кадру вибуху
+  frameW: 96,               // 🔧 Ширина кадру вибуху
+  frameH: 96,               // 🔧 Висота кадру вибуху
   totalFrames: 64,          // 🔧 Загальна кількість кадрів у вибуху
   interval: 20              // 🕐 Швидкість кадрів вибуху (менше = швидше)
 };
