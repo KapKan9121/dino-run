@@ -17,24 +17,24 @@ backgroundFar.src = "images/fon/layer_far.png";
 const enemyImg = new Image();
 enemyImg.src = "images/enemy/enemy.png";
 
-// === Анімаційні параметри окремо для кожного спрайта ===
+// === Анімаційні параметри ===
 const playerAnimation = {
-  frameW: 64,               // 🔧 Ширина кадру гравця
-  frameH: 64,               // 🔧 Висота кадру гравця
-  totalFrames: 64,          // 🔧 Загальна кількість кадрів
-  interval: 60,            // 🕐 Інтервал анімації (мс)
+  frameW: 64,
+  frameH: 64,
+  totalFrames: 64,
+  interval: 60,
   index: 0,
   timer: 0
 };
 
 const explosionAnimation = {
-  frameW: 96,               // 🔧 Ширина кадру вибуху
-  frameH: 96,               // 🔧 Висота кадру вибуху
-  totalFrames: 64,          // 🔧 Загальна кількість кадрів у вибуху
-  interval: 20              // 🕐 Швидкість кадрів вибуху (менше = швидше)
+  frameW: 96,
+  frameH: 96,
+  totalFrames: 64,
+  interval: 20
 };
 
-// === Ігрові об'єкти ===
+// === Об'єкти ===
 const player = {
   x: canvas.width / 2,
   y: canvas.height * 0.75,
@@ -42,7 +42,8 @@ const player = {
   h: playerAnimation.frameH,
   speedX: 0,
   speedY: 0,
-  frame: 0
+  frame: 0,
+  moveSpeed: 5 // 🔧 Швидкість для клавіатури
 };
 
 const bullets = [];
@@ -56,6 +57,27 @@ let bgFarY = 0;
 let lastTouch = null;
 let stopThreshold = 0.5;
 
+// === Клавіатурне керування (незалежно від мови) ===
+const keys = {
+  ArrowUp: false,
+  ArrowDown: false,
+  ArrowLeft: false,
+  ArrowRight: false,
+  KeyW: false,
+  KeyA: false,
+  KeyS: false,
+  KeyD: false
+};
+
+window.addEventListener("keydown", (e) => {
+  if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+});
+
+window.addEventListener("keyup", (e) => {
+  if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+});
+
+// 📱 Touch start
 canvas.addEventListener("touchstart", (e) => {
   const t = e.touches[0];
   lastTouch = { x: t.clientX, y: t.clientY, time: performance.now() };
@@ -63,13 +85,26 @@ canvas.addEventListener("touchstart", (e) => {
   player.speedY = 0;
 });
 
+// 📱 Touch move
 canvas.addEventListener("touchmove", (e) => {
   const t = e.touches[0];
+  handleRelativeMove(t.clientX, t.clientY);
+});
+
+// 📱 Touch end
+canvas.addEventListener("touchend", () => {
+  lastTouch = null;
+  player.speedX = 0;
+  player.speedY = 0;
+});
+
+// === Функція для сенсора ===
+function handleRelativeMove(x, y) {
   const now = performance.now();
   if (!lastTouch) return;
 
-  const dx = t.clientX - lastTouch.x;
-  const dy = t.clientY - lastTouch.y;
+  const dx = x - lastTouch.x;
+  const dy = y - lastTouch.y;
   const dt = now - lastTouch.time;
   if (dt < 1) return;
 
@@ -80,14 +115,8 @@ canvas.addEventListener("touchmove", (e) => {
   player.speedX = speed < stopThreshold ? 0 : pxPerFrameX;
   player.speedY = speed < stopThreshold ? 0 : pxPerFrameY;
 
-  lastTouch = { x: t.clientX, y: t.clientY, time: now };
-});
-
-canvas.addEventListener("touchend", () => {
-  lastTouch = null;
-  player.speedX = 0;
-  player.speedY = 0;
-});
+  lastTouch = { x, y, time: now };
+}
 
 // === Головний цикл ===
 let lastTime = performance.now();
@@ -101,8 +130,17 @@ function gameLoop(now) {
 }
 
 function update(dt) {
-  player.x += player.speedX;
-  player.y += player.speedY;
+  // ✅ Оновлення позиції від клавіатури
+  let moveX = 0, moveY = 0;
+  if (keys.ArrowLeft || keys.KeyA) moveX = -player.moveSpeed;
+  if (keys.ArrowRight || keys.KeyD) moveX = player.moveSpeed;
+  if (keys.ArrowUp || keys.KeyW) moveY = -player.moveSpeed;
+  if (keys.ArrowDown || keys.KeyS) moveY = player.moveSpeed;
+
+  player.x += moveX + player.speedX;
+  player.y += moveY + player.speedY;
+
+  // Обмеження в межах екрану
   player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
   player.y = Math.max(player.h / 2, Math.min(canvas.height - player.h / 2, player.y));
 
@@ -142,12 +180,7 @@ function update(dt) {
         b.y < e.y + e.h &&
         b.y + b.h > e.y
       ) {
-        explosions.push({
-          x: e.x,
-          y: e.y,
-          frame: 0,
-          timer: 0
-        });
+        explosions.push({ x: e.x, y: e.y, frame: 0, timer: 0 });
         enemies.splice(i, 1);
         bullets.splice(j, 1);
         score++;
@@ -155,7 +188,6 @@ function update(dt) {
     });
   });
 
-  // Анімація вибухів
   explosions.forEach((expl, i) => {
     expl.timer += dt;
     if (expl.timer >= explosionAnimation.interval) {
@@ -173,18 +205,13 @@ function draw() {
   ctx.drawImage(backgroundFar, 0, bgFarY, canvas.width, canvas.height);
   ctx.drawImage(backgroundFar, 0, bgFarY - canvas.height, canvas.width, canvas.height);
 
-  if (playerSprite.complete && playerSprite.naturalHeight !== 0) {
-    ctx.drawImage(
-      playerSprite,
-      0, player.frame * playerAnimation.frameH,
-      playerAnimation.frameW, playerAnimation.frameH,
-      player.x - player.w / 2, player.y - player.h / 2,
-      playerAnimation.frameW, playerAnimation.frameH
-    );
-  } else {
-    ctx.fillStyle = "lime";
-    ctx.fillRect(player.x - 20, player.y - 20, 40, 40);
-  }
+  ctx.drawImage(
+    playerSprite,
+    0, player.frame * playerAnimation.frameH,
+    playerAnimation.frameW, playerAnimation.frameH,
+    player.x - player.w / 2, player.y - player.h / 2,
+    playerAnimation.frameW, playerAnimation.frameH
+  );
 
   explosions.forEach((expl) => {
     ctx.drawImage(
@@ -210,6 +237,7 @@ function draw() {
   ctx.fillText("Score: " + score, 10, 30);
 }
 
+// === Постріли ===
 setInterval(() => {
   bullets.push({
     x: player.x,
@@ -219,6 +247,7 @@ setInterval(() => {
   });
 }, 250);
 
+// === Спавн ворогів ===
 setInterval(() => {
   const eW = 50;
   enemies.push({
