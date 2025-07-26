@@ -8,20 +8,76 @@ canvas.height = innerHeight;
 let gameOver = false;
 let fireInterval = null;
 let spawnInterval = null;
+let allResourcesLoaded = false;
 
 // === Сенсорне керування ===
 let lastTouch = null;
 let stopThreshold = 0.5;
 
+// === Екран завантаження ===
+const loadingScreen = document.createElement("div");
+loadingScreen.style.position = "fixed";
+loadingScreen.style.top = "0";
+loadingScreen.style.left = "0";
+loadingScreen.style.width = "100%";
+loadingScreen.style.height = "100%";
+loadingScreen.style.background = "#000";
+loadingScreen.style.display = "flex";
+loadingScreen.style.flexDirection = "column";
+loadingScreen.style.alignItems = "center";
+loadingScreen.style.justifyContent = "center";
+loadingScreen.style.zIndex = "1000";
+loadingScreen.style.color = "#fff";
+loadingScreen.style.fontFamily = "Arial, sans-serif";
+
+const loadingTitle = document.createElement("h1");
+loadingTitle.textContent = "Space Shooter";
+loadingTitle.style.fontSize = "3rem";
+loadingTitle.style.marginBottom = "2rem";
+loadingTitle.style.textShadow = "0 0 10px #00ffff";
+
+const loadingBarContainer = document.createElement("div");
+loadingBarContainer.style.width = "80%";
+loadingBarContainer.style.maxWidth = "400px";
+loadingBarContainer.style.height = "20px";
+loadingBarContainer.style.background = "#333";
+loadingBarContainer.style.borderRadius = "10px";
+loadingBarContainer.style.overflow = "hidden";
+loadingBarContainer.style.marginBottom = "1rem";
+
+const loadingBar = document.createElement("div");
+loadingBar.style.height = "100%";
+loadingBar.style.width = "0%";
+loadingBar.style.background = "linear-gradient(90deg, #0066ff, #00ffff)";
+loadingBar.style.transition = "width 0.3s ease";
+loadingBar.style.borderRadius = "10px";
+
+const loadingText = document.createElement("div");
+loadingText.textContent = "Завантаження 0%";
+loadingText.style.fontSize = "1.2rem";
+loadingText.style.marginBottom = "2rem";
+
+const loadingTips = document.createElement("div");
+loadingTips.textContent = "Порада: Уникайте астероїдів та знищуйте ворогів!";
+loadingTips.style.fontSize = "1rem";
+loadingTips.style.opacity = "0.7";
+
+loadingBarContainer.appendChild(loadingBar);
+loadingScreen.appendChild(loadingTitle);
+loadingScreen.appendChild(loadingBarContainer);
+loadingScreen.appendChild(loadingText);
+loadingScreen.appendChild(loadingTips);
+document.body.appendChild(loadingScreen);
+
 // === Зірковий фон ===
 const stars = [];
-const STAR_COUNT = 150; // кількість зірок
+const STAR_COUNT = 150;
 for (let i = 0; i < STAR_COUNT; i++) {
   stars.push({
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height,
     size: Math.random() * 2 + 1,
-    speed: Math.random() * 0.5 + 0.2, // швидкість для глибини
+    speed: Math.random() * 0.5 + 0.2,
     opacity: Math.random() * 0.5 + 0.5
   });
 }
@@ -80,8 +136,8 @@ const shipsConfig = {
     fireRate: 250,
     hp: 150,
     moveSpeed: 5,
-    speedX: 0, // Додано для сенсорного керування
-    speedY: 0  // Додано для сенсорного керування
+    speedX: 0,
+    speedY: 0
   },
   predator: {
     shipName: "Predator",
@@ -97,8 +153,8 @@ const shipsConfig = {
     fireRate: 300,
     hp: 200,
     moveSpeed: 4,
-    speedX: 0, // Додано для сенсорного керування
-    speedY: 0  // Додано для сенсорного керування
+    speedX: 0,
+    speedY: 0
   }
 };
 
@@ -106,13 +162,13 @@ const shipsConfig = {
 const enemiesConfig = {
   asteroid: {
     sprite: "asteroid",
-    frameW: 87,
-    frameH: 64,
+    frameW: 232,
+    frameH: 171,
     totalFrames: 20,
     interval: 100,
     orientation: 'horizontal',
-    scale: 0.7,
-    collisionScale: 0.7,
+    scale: 0.4,
+    collisionScale: 0.4,
     hp: 50,
     damage: 50,
     speedMin: 120,
@@ -133,42 +189,163 @@ const enemiesConfig = {
     speedMin: 60,
     speedMax: 120,
     canShoot: true,
-    bulletColor: "red",
+    bulletColor: "red1",
     bulletSize: 20,
     bulletSpeed: 250,
     fireRate: 1500
   }
 };
 
+// === Завантаження ресурсів ===
+const resources = {
+  images: {},
+  sounds: {}
+};
+
+// Список всіх зображень для завантаження
+const imageAssets = [
+  { name: "explosion", path: "images/effects/explosion_96.png" },
+  { name: "ranger", path: "images/player/Ranger_64.png" },
+  { name: "predator", path: "images/player/Predator_64.png" },
+  { name: "asteroid", path: "images/enemy/asteroid.png" },
+  { name: "enemy", path: "images/enemy/enemy.png" },
+  { name: "plasma-red", path: "images/bullets/plasma-red.png" },
+  { name: "plasma-red1", path: "images/bullets/plasma-red1.png" }
+];
+
+// Список всіх звуків для завантаження
+const soundAssets = [
+  { name: "shot", path: "sfx/shot" },
+  { name: "explosion", path: "sfx/explosion" }
+];
+
+let loadedCount = 0;
+const totalResources = imageAssets.length + soundAssets.length;
+
+function updateProgress() {
+  loadedCount++;
+  const progress = Math.round((loadedCount / totalResources) * 100);
+  loadingBar.style.width = `${progress}%`;
+  loadingText.textContent = `Завантаження ${progress}%`;
+  
+  if (loadedCount === totalResources) {
+    setTimeout(() => {
+      loadingScreen.style.opacity = "0";
+      setTimeout(() => {
+        document.body.removeChild(loadingScreen);
+        allResourcesLoaded = true;
+        showShipSelection();
+      }, 500);
+    }, 500);
+  }
+}
+
+// Завантаження зображень
+imageAssets.forEach(asset => {
+  resources.images[asset.name] = new Image();
+  resources.images[asset.name].onload = updateProgress;
+  resources.images[asset.name].onerror = () => {
+    console.error(`Помилка завантаження зображення: ${asset.path}`);
+    updateProgress();
+  };
+  resources.images[asset.name].src = asset.path;
+});
+
+// Завантаження звуків (перевірка тільки підтримки, реальне завантаження буде при використанні)
+soundAssets.forEach(asset => {
+  if (Game.Audio._supported) {
+    const a = new Audio();
+    const ext = a.canPlayType("audio/ogg") ? ".ogg" : ".mp3";
+    a.src = asset.path + ext;
+    a.load();
+    a.addEventListener('canplaythrough', updateProgress);
+    a.addEventListener('error', () => {
+      console.error(`Помилка завантаження звуку: ${asset.path}`);
+      updateProgress();
+    });
+    resources.sounds[asset.name] = a;
+  } else {
+    updateProgress();
+  }
+});
+
 // === Вибір корабля ===
 let selectedShip = null;
 function showShipSelection() {
+  if (!allResourcesLoaded) return;
+
   const menu = document.createElement("div");
   menu.style.position = "absolute";
   menu.style.top = "50%";
   menu.style.left = "50%";
   menu.style.transform = "translate(-50%, -50%)";
-  menu.style.background = "#000";
+  menu.style.background = "rgba(0,0,0,0.8)";
   menu.style.color = "#fff";
-  menu.style.padding = "20px";
+  menu.style.padding = "30px";
+  menu.style.borderRadius = "10px";
   menu.style.textAlign = "center";
+  menu.style.boxShadow = "0 0 20px rgba(0, 255, 255, 0.5)";
+  menu.style.border = "1px solid #00ffff";
 
   const title = document.createElement("h2");
   title.innerText = "Вибери корабель:";
+  title.style.fontSize = "2rem";
+  title.style.marginBottom = "20px";
+  title.style.textShadow = "0 0 10px #00ffff";
   menu.appendChild(title);
 
+  const shipsContainer = document.createElement("div");
+  shipsContainer.style.display = "flex";
+  shipsContainer.style.justifyContent = "center";
+  shipsContainer.style.gap = "20px";
+  shipsContainer.style.flexWrap = "wrap";
+  shipsContainer.style.marginBottom = "20px";
+
   for (let shipKey in shipsConfig) {
+    const shipContainer = document.createElement("div");
+    shipContainer.style.display = "flex";
+    shipContainer.style.flexDirection = "column";
+    shipContainer.style.alignItems = "center";
+    
     const btn = document.createElement("button");
-    btn.innerText = shipKey;
+    btn.innerText = shipsConfig[shipKey].shipName;
+    btn.style.padding = "10px 20px";
     btn.style.margin = "10px";
+    btn.style.background = "linear-gradient(90deg, #0066ff, #00ffff)";
+    btn.style.color = "#fff";
+    btn.style.border = "none";
+    btn.style.borderRadius = "5px";
+    btn.style.cursor = "pointer";
+    btn.style.fontSize = "1.2rem";
+    btn.style.transition = "transform 0.2s, box-shadow 0.2s";
+    
+    btn.onmouseover = () => {
+      btn.style.transform = "scale(1.05)";
+      btn.style.boxShadow = "0 0 15px rgba(0, 255, 255, 0.7)";
+    };
+    
+    btn.onmouseout = () => {
+      btn.style.transform = "scale(1)";
+      btn.style.boxShadow = "none";
+    };
+    
     btn.onclick = () => {
       selectedShip = new Ship(shipsConfig[shipKey]);
       document.body.removeChild(menu);
       startGame();
     };
-    menu.appendChild(btn);
+
+    const shipPreview = document.createElement("div");
+    shipPreview.style.width = "100px";
+    shipPreview.style.height = "100px";
+    shipPreview.style.background = `url(${resources.images[shipKey.toLowerCase()].src}) center/contain no-repeat`;
+    
+    shipContainer.appendChild(shipPreview);
+    shipContainer.appendChild(btn);
+    shipsContainer.appendChild(shipContainer);
   }
 
+  menu.appendChild(shipsContainer);
   document.body.appendChild(menu);
 }
 
@@ -185,11 +362,10 @@ class Ship {
     this.forward = true;
     this.hp = config.hp;
     this.moveSpeed = config.moveSpeed;
-    this.speedX = 0; // Додано для сенсорного керування
-    this.speedY = 0; // Додано для сенсорного керування
+    this.speedX = 0;
+    this.speedY = 0;
 
-    this.image = new Image();
-    this.image.src = `images/player/${config.shipName}_64.png`;
+    this.image = resources.images[config.shipName.toLowerCase()];
   }
 
   update(dt) {
@@ -223,7 +399,7 @@ class Ship {
       w: this.config.bulletSize,
       h: this.config.bulletSize,
       damage: this.config.bulletDamage,
-      img: `images/bullets/plasma-${this.config.bulletColor}.png`
+      img: resources.images[`plasma-${this.config.bulletColor}`].src
     });
     Game.Audio.play("shot");
   }
@@ -232,24 +408,21 @@ class Ship {
 // === Функція для малювання HP бару з заокругленими краями ===
 function drawHpBar(enemy) {
     const barWidth = enemy.w * 0.6;
-    const barHeight = 4; // Збільшив висоту для кращого вигляду
+    const barHeight = 4;
     const x = enemy.x + (enemy.w - barWidth) / 2;
-    const y = enemy.y - 8; // Підняв трохи вище
-    const radius = 2; // Радіус закруглення
+    const y = enemy.y - 8;
+    const radius = 2;
 
-    // Фон бару з заокругленими краями
     ctx.beginPath();
     ctx.roundRect(x, y, barWidth, barHeight, radius);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fill();
 
-    // Заповнення HP з заокругленими краями
     const hpPercent = enemy.hp / enemy.config.hp;
     const fillWidth = barWidth * hpPercent;
     
-    if (fillWidth > 0) { // Малюємо тільки якщо є HP
+    if (fillWidth > 0) {
         ctx.beginPath();
-        // Обмежуємо закруглення для заповнення, щоб воно не виходило за межі
         if (fillWidth >= barWidth - radius * 2) {
             ctx.roundRect(x, y, fillWidth, barHeight, radius);
         } else {
@@ -259,7 +432,6 @@ function drawHpBar(enemy) {
             ctx.lineTo(x, y + barHeight);
         }
         
-        // Градієнт кольорів
         if (hpPercent > 0.6) {
             ctx.fillStyle = '#00ff00';
         } else if (hpPercent > 0.3) {
@@ -270,7 +442,6 @@ function drawHpBar(enemy) {
         ctx.fill();
     }
 
-    // Тонка обводка
     ctx.beginPath();
     ctx.roundRect(x, y, barWidth, barHeight, radius);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
@@ -295,8 +466,7 @@ class Enemy {
         this.lastDamageTime = 0;
         this.showHpBar = false;
 
-        this.image = new Image();
-        this.image.src = `images/enemy/${config.sprite}.png`;
+        this.image = resources.images[config.sprite];
 
         if (config.canShoot) {
             this.lastFire = 0;
@@ -319,10 +489,9 @@ class Enemy {
             }
         }
 
-        // Оновлено: зникає через 1 секунду після останнього удару
         if (this.showHpBar) {
             this.lastDamageTime += dt;
-            if (this.lastDamageTime > 1000) { // 1 секунда замість 2
+            if (this.lastDamageTime > 1000) {
                 this.showHpBar = false;
             }
         }
@@ -341,7 +510,7 @@ class Enemy {
             w: this.config.bulletSize,
             h: this.config.bulletSize,
             speed: this.config.bulletSpeed,
-            img: `images/bullets/plasma-${this.config.bulletColor}.png`,
+            img: resources.images[`plasma-${this.config.bulletColor}`].src,
             damage: 20
         });
         Game.Audio.play("shot");
@@ -354,12 +523,6 @@ class Enemy {
         }
     }
 }
-
-// === Завантаження зображень ===
-const images = {
-  explosion: new Image()
-};
-images.explosion.src = "images/effects/explosion_96.png";
 
 // === Анімації ===
 const animations = {
@@ -393,7 +556,7 @@ function gameOverScreen() {
   clearInterval(spawnInterval);
 
   const overlay = document.createElement("div");
-  overlay.style.position = "absolute";
+  overlay.style.position = "fixed";
   overlay.style.top = "0";
   overlay.style.left = "0";
   overlay.style.width = "100%";
@@ -405,18 +568,64 @@ function gameOverScreen() {
   overlay.style.justifyContent = "center";
   overlay.style.color = "#fff";
   overlay.style.fontSize = "24px";
-  overlay.innerHTML = `<h2>Гру закінчено</h2><p>Score: ${score}</p>`;
+  overlay.style.zIndex = "1000";
+
+  const gameOverText = document.createElement("h2");
+  gameOverText.textContent = "Гру закінчено";
+  gameOverText.style.fontSize = "3rem";
+  gameOverText.style.marginBottom = "1rem";
+  gameOverText.style.textShadow = "0 0 10px #ff0000";
+
+  const scoreText = document.createElement("p");
+  scoreText.textContent = `Score: ${score}`;
+  scoreText.style.fontSize = "2rem";
+  scoreText.style.marginBottom = "2rem";
 
   const restartBtn = document.createElement("button");
-  restartBtn.innerText = "🔄 Restart";
+  restartBtn.textContent = "🔄 Restart";
+  restartBtn.style.padding = "10px 30px";
   restartBtn.style.margin = "10px";
+  restartBtn.style.background = "linear-gradient(90deg, #ff3300, #ff9900)";
+  restartBtn.style.color = "#fff";
+  restartBtn.style.border = "none";
+  restartBtn.style.borderRadius = "5px";
+  restartBtn.style.cursor = "pointer";
+  restartBtn.style.fontSize = "1.2rem";
+  restartBtn.style.transition = "transform 0.2s";
+  
+  restartBtn.onmouseover = () => {
+    restartBtn.style.transform = "scale(1.05)";
+  };
+  
+  restartBtn.onmouseout = () => {
+    restartBtn.style.transform = "scale(1)";
+  };
+  
   restartBtn.onclick = () => {
     document.body.removeChild(overlay);
     restartGame();
   };
 
   const backBtn = document.createElement("button");
-  backBtn.innerText = "⬅ Back to Menu";
+  backBtn.textContent = "⬅ Back to Menu";
+  backBtn.style.padding = "10px 30px";
+  backBtn.style.margin = "10px";
+  backBtn.style.background = "linear-gradient(90deg, #0066ff, #00ccff)";
+  backBtn.style.color = "#fff";
+  backBtn.style.border = "none";
+  backBtn.style.borderRadius = "5px";
+  backBtn.style.cursor = "pointer";
+  backBtn.style.fontSize = "1.2rem";
+  backBtn.style.transition = "transform 0.2s";
+  
+  backBtn.onmouseover = () => {
+    backBtn.style.transform = "scale(1.05)";
+  };
+  
+  backBtn.onmouseout = () => {
+    backBtn.style.transform = "scale(1)";
+  };
+  
   backBtn.onclick = () => {
     document.body.removeChild(overlay);
     selectedShip = null;
@@ -427,6 +636,8 @@ function gameOverScreen() {
     showShipSelection();
   };
 
+  overlay.appendChild(gameOverText);
+  overlay.appendChild(scoreText);
   overlay.appendChild(restartBtn);
   overlay.appendChild(backBtn);
   document.body.appendChild(overlay);
@@ -444,8 +655,8 @@ function restartGame() {
   selectedShip.x = canvas.width / 2;
   selectedShip.y = canvas.height * 0.75;
   selectedShip.hp = selectedShip.config.hp;
-  selectedShip.speedX = 0; // Скидання швидкості при рестарті
-  selectedShip.speedY = 0; // Скидання швидкості при рестарті
+  selectedShip.speedX = 0;
+  selectedShip.speedY = 0;
 
   clearInterval(fireInterval);
   clearInterval(spawnInterval);
@@ -508,7 +719,6 @@ function update(dt) {
   if (keys.ArrowUp || keys.KeyW) moveY = -selectedShip.moveSpeed;
   if (keys.ArrowDown || keys.KeyS) moveY = selectedShip.moveSpeed;
 
-  // Додаємо рух від клавіатури та сенсорного керування
   selectedShip.x += moveX + selectedShip.speedX;
   selectedShip.y += moveY + selectedShip.speedY;
 
@@ -609,24 +819,23 @@ function drawSprite(image, anim, x, y, w, h, frame) {
 }
 
 function draw() {
-  drawStars(); // 🔥 малюємо рухомі зірки
+  drawStars();
 
   if (selectedShip) selectedShip.draw();
 
   enemies.forEach(e => e.draw());
   bullets.forEach(b => {
-    const img = new Image();
-    img.src = b.img;
+    const img = resources.images[b.img.split('/').pop().split('.')[0]];
     ctx.drawImage(img, b.x, b.y, b.w, b.h);
   });
 
   enemyBullets.forEach(b => {
-    const img = new Image();
-    img.src = b.img;
+    const img = resources.images[b.img.split('/').pop().split('.')[0]];
     ctx.drawImage(img, b.x, b.y, b.w, b.h);
   });
 
-  explosions.forEach(expl => drawSprite(images.explosion, animations.explosion, expl.x - expl.w / 2, expl.y - expl.h / 2, expl.w, expl.h, expl.frame));
+  explosions.forEach(expl => drawSprite(resources.images.explosion, animations.explosion, 
+    expl.x - expl.w / 2, expl.y - expl.h / 2, expl.w, expl.h, expl.frame));
 
   ctx.fillStyle = "white";
   ctx.font = "20px Arial";
@@ -684,6 +893,3 @@ function handleRelativeMove(x, y) {
 
   lastTouch = { x, y, time: now };
 }
-
-// === Старт ===
-showShipSelection();
